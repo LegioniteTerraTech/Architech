@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30523.141
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Architech", "Architech\Architech.csproj", "{485DCF9A-4B9B-4F9B-9123-2FD422904820}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+		Steam|Any CPU = Steam|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{485DCF9A-4B9B-4F9B-9123-2FD422904820}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{485DCF9A-4B9B-4F9B-9123-2FD422904820}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{485DCF9A-4B9B-4F9B-9123-2FD422904820}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{485DCF9A-4B9B-4F9B-9123-2FD422904820}.Release|Any CPU.Build.0 = Release|Any CPU
+		{485DCF9A-4B9B-4F9B-9123-2FD422904820}.Steam|Any CPU.ActiveCfg = Steam|Any CPU
+		{485DCF9A-4B9B-4F9B-9123-2FD422904820}.Steam|Any CPU.Build.0 = Steam|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BBABA7F5-2658-4802-B4B9-6ABB0263BF56}
+	EndGlobalSection
+EndGlobal
