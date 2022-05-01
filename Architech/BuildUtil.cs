@@ -55,6 +55,8 @@ namespace Architech
         private static bool lastFrameButton = false;
         private static bool lastFrameButton2 = false;
 
+
+
         private static bool PaintBlocks => ManPointer.inst.BuildMode == ManPointer.BuildingMode.PaintBlock && KickStart.IsIngame && !BusyGrabbingTechs;
         internal static Transform rBlock => currentTank.rootBlockTrans;
         internal Vector3 tankCenter => rBlock.GetComponent<TankBlock>() ?
@@ -1799,8 +1801,9 @@ namespace Architech
             if (!pointerBlock || !pointerBlock.tank)
                 return;
             Tank tank = pointerBlock.tank;
-            if (tank == Singleton.playerTank)
-                return;
+            if (tank == Singleton.playerTank || (!ManGameMode.inst.IsCurrent<ModeMisc>() 
+                && tank.Vision.GetFirstVisibleTechIsEnemy(ManPlayer.inst.PlayerTeam)))
+                return; // DO NOT ALLOW THE PLAYER TO GRAB THEIR OWN TECH and enemies in non-creative block it.
             BusyGrabbingTechs = true;
             lastDraggedName = tank.name;
             List<TankBlock> cache = DitchAllBlocks(tank, false);
