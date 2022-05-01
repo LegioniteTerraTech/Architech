@@ -1,0 +1,9 @@
+﻿{
+  "Id": "legionite.architech",
+  "DisplayName": "Architech",
+  "Author": "Legionite",
+  "Version": "1.0",
+  "Enable": true,
+  "AssemblyName": "Architech.dll",
+  "EntryMethod": "Architech.KickStart.Main"
+}
