@@ -142,9 +142,9 @@ namespace Architech
             if (AddedNewCursors)
                 return;
             MousePointer MP = FindObjectOfType<MousePointer>();
-            Debug.Assert(!MP, "BuildUtil: AddNewCursors - THE CURSOR DOES NOT EXIST!");
+            DebugArchitech.Assert(!MP, "BuildUtil: AddNewCursors - THE CURSOR DOES NOT EXIST!");
             string DLLDirectory = new DirectoryInfo(Assembly.GetExecutingAssembly().Location).Parent.ToString();
-            Debug.LogDevOnly("BuildUtil: AddNewCursors - Path: " + DLLDirectory);
+            DebugArchitech.LogDevOnly("BuildUtil: AddNewCursors - Path: " + DLLDirectory);
             try
             {
                 int LODLevel = 0;
@@ -153,16 +153,16 @@ namespace Architech
                 {
                     List<MousePointer.CursorData> cursorTypes = item.m_CursorData.ToList();
 
-                    Debug.Log(item.m_Name + " center: " + item.m_UseSoftwareCursor + " | " + cursorTypes.Count);
+                    DebugArchitech.Log(item.m_Name + " center: " + item.m_UseSoftwareCursor + " | " + cursorTypes.Count);
                     foreach (var exists in cursorTypes)
                     {
                         try
                         {
-                            Debug.Log(exists.m_Texture.name.NullOrEmpty() ? "NULL_NAME" : exists.m_Texture.name + " center: " + exists.m_Hotspot.x + "|" + exists.m_Hotspot.y);
+                            DebugArchitech.Log(exists.m_Texture.name.NullOrEmpty() ? "NULL_NAME" : exists.m_Texture.name + " center: " + exists.m_Hotspot.x + "|" + exists.m_Hotspot.y);
                         }
                         catch
                         {
-                            Debug.Log("BuildUtil: AddNewCursors - failed to fetch case");
+                            DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch case");
                         }
                     }
 
@@ -183,12 +183,12 @@ namespace Architech
                     item.m_CursorData = cursorTypes.ToArray();
                 }
             }
-            catch (Exception e) { Debug.Log("BuildUtil: AddNewCursors - failed to fetch rest of cursor textures " + e); }
+            catch (Exception e) { DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch rest of cursor textures " + e); }
             AddedNewCursors = true;
         }
         private static void TryAddNewCursor(List<MousePointer.CursorData> lodInst, string DLLDirectory, string name, int lodLevel, Vector2 center)
         {
-            Debug.Log("BuildUtil: AddNewCursors - " + DLLDirectory + " for " + name + " " + lodLevel + " " + center);
+            DebugArchitech.Log("BuildUtil: AddNewCursors - " + DLLDirectory + " for " + name + " " + lodLevel + " " + center);
             try
             {
                 List<FileInfo> FI = new DirectoryInfo(DLLDirectory).GetFiles().ToList();
@@ -201,7 +201,7 @@ namespace Architech
                 }
                 catch
                 {
-                    Debug.Log("BuildUtil: AddNewCursors - failed to fetch cursor texture LOD " + lodLevel + " for " + name);
+                    DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch cursor texture LOD " + lodLevel + " for " + name);
                     tex = FileUtils.LoadTexture(FI.Find(delegate (FileInfo cand)
                     { return cand.Name == name + "2.png"; }).ToString());
                     cursorCache.Add(tex);
@@ -212,9 +212,9 @@ namespace Architech
                     m_Texture = tex,
                 };
                 lodInst.Add(CD);
-                Debug.Log(name + " center: " + CD.m_Hotspot.x + "|" + CD.m_Hotspot.y);
+                DebugArchitech.Log(name + " center: " + CD.m_Hotspot.x + "|" + CD.m_Hotspot.y);
             }
-            catch { Debug.Assert(true, "BuildUtil: AddNewCursors - failed to fetch cursor texture " + name); }
+            catch { DebugArchitech.Assert(true, "BuildUtil: AddNewCursors - failed to fetch cursor texture " + name); }
         }
 
         public static void OnPlayerTechChanged(Tank tank, bool yes)
@@ -266,7 +266,7 @@ namespace Architech
                             var anchor = newlyRemoved.GetComponent<ModuleAnchor>();
                             if (newlyRemoved.GetComponent<ModuleTechController>() || (anchor && anchor.IsAnchored))
                             {
-                                Debug.Log("BuildUtil: Cannot batch grab cabs or anchored anchors");
+                                DebugArchitech.Log("BuildUtil: Cannot batch grab cabs or anchored anchors");
                                 CabDetached = true;
                                 delayedUnsortedBatching.Clear();
                                 return;
@@ -299,7 +299,7 @@ namespace Architech
                 {
                     if (ManPointer.inst.DraggingItem == newlyRemoved.visible)
                     {
-                        Debug.Log("BuildUtil: Grabbed anonMirrorHeld");
+                        DebugArchitech.Log("BuildUtil: Grabbed anonMirrorHeld");
                         delayedRemove.Add(new KeyValuePair<Tank, TankBlock>(tank, newlyRemoved));
                         lastRemovedTank = tank;
                         anonMirrorHeld = inst.GetMirroredBlock(tank, newlyRemoved);
@@ -317,7 +317,7 @@ namespace Architech
                         var anchor = newlyRemoved.GetComponent<ModuleAnchor>();
                         if (newlyRemoved.GetComponent<ModuleTechController>() || (anchor && anchor.IsAnchored))
                         {
-                            Debug.Log("BuildUtil: Cannot batch grab cabs or anchored anchors");
+                            DebugArchitech.Log("BuildUtil: Cannot batch grab cabs or anchored anchors");
                             CabDetached = true;
                             delayedUnsortedBatching.Clear();
                             return;
@@ -351,7 +351,7 @@ namespace Architech
                 var anchor = newlyRemoved.GetComponent<ModuleAnchor>();
                 if (newlyRemoved.GetComponent<ModuleTechController>() || (anchor && anchor.IsAnchored))
                 {
-                    Debug.Log("BuildUtil: Cannot batch grab cabs or anchored anchors");
+                    DebugArchitech.Log("BuildUtil: Cannot batch grab cabs or anchored anchors");
                     CabDetached = true;
                     delayedUnsortedBatching.Clear();
                     return;
@@ -836,7 +836,7 @@ namespace Architech
                             GetMirrorNormal(MirrorHeld, ref cachedMirrorAngle);
                         else
                         {
-                            Debug.Log("Block " + MirrorHeld.name + " is x-axis mirror (has a separate mirror block)");
+                            DebugArchitech.Log("Block " + MirrorHeld.name + " is x-axis mirror (has a separate mirror block)");
                             cachedMirrorAngle = MirrorAngle.X;
                         }
                     }
@@ -1004,7 +1004,7 @@ namespace Architech
                     if (blockLocalPos.x > 0)
                     {   // Mirror Side
                         if (playerSideBC.p == mirrorSideBC.p)
-                            Debug.LogError("BuildUtil: Could not fetch mirrored!");
+                            DebugArchitech.LogError("BuildUtil: Could not fetch mirrored!");
                         PreGrab(toCollect);
                         MirrorBatchCache.Add(new KeyValuePair<TankBlock, BlockCache>(toCollect, mirrorSideBC));
                     }
@@ -1024,7 +1024,7 @@ namespace Architech
                     else
                     {   // Mirror Side
                         if (playerSideBC.p == mirrorSideBC.p)
-                            Debug.LogError("BuildUtil: Could not fetch mirrored!");
+                            DebugArchitech.LogError("BuildUtil: Could not fetch mirrored!");
                         PreGrab(toCollect);
                         MirrorBatchCache.Add(new KeyValuePair<TankBlock, BlockCache>(toCollect, mirrorSideBC));
                     }
@@ -1285,10 +1285,10 @@ namespace Architech
                     return blockOnOtherSide;
                 }
                 else
-                    Debug.Assert(true, "BuildUtil: GetMirroredBlock - blockOnOtherSide was not a valid mirror block. Perhaps lastHovered was incorrect?");
+                    DebugArchitech.Assert(true, "BuildUtil: GetMirroredBlock - blockOnOtherSide was not a valid mirror block. Perhaps lastHovered was incorrect?");
             }
             else
-                Debug.Assert(true, "BuildUtil: GetMirroredBlock - blockOnOtherSide was null?");
+                DebugArchitech.Assert(true, "BuildUtil: GetMirroredBlock - blockOnOtherSide was null?");
             return null;
         }
 
@@ -1313,7 +1313,7 @@ namespace Architech
                     //blockOnOtherSide.trans.position = otherBlock.trans.position + (otherBlock.BlockCellBounds.size.magnitude * (otherBlock.trans.position - blockOnOtherSide.trans.position).normalized);
                 }
                 else
-                    Debug.Assert(true, "BuildUtil: Our block has not detached from the Tech it was detached from.  There are now going to be many errors.");
+                    DebugArchitech.Assert(true, "BuildUtil: Our block has not detached from the Tech it was detached from.  There are now going to be many errors.");
                 return true;
             }
             return false;
@@ -1544,7 +1544,7 @@ namespace Architech
 
             if (!doComplex)
             {
-                Debug.Log("Block is complex mirror!");
+                DebugArchitech.Log("Block is complex mirror!");
                 angle = MirrorAngle.NeedsPrecise;
                 return true;
             }
@@ -1572,7 +1572,7 @@ namespace Architech
             angle = comp.First().Value;
             if (Mathf.Abs(comp.First().Key) > 2)
             {
-                Debug.Log("Block is vague");
+                DebugArchitech.Log("Block is vague");
                 return false;
             }
             return true;
@@ -1762,7 +1762,7 @@ namespace Architech
             }
             catch
             {
-                Debug.LogError("BuildUtil:  Block was expected but it was null!  Was it destroyed in tranzit!?");
+                DebugArchitech.LogError("BuildUtil:  Block was expected but it was null!  Was it destroyed in tranzit!?");
             }
         }
 
@@ -1775,7 +1775,7 @@ namespace Architech
             }
             catch
             {
-                Debug.LogError("BuildUtil: HoldInRelation - Block was expected but it was null!  Was it destroyed in tranzit!?");
+                DebugArchitech.LogError("BuildUtil: HoldInRelation - Block was expected but it was null!  Was it destroyed in tranzit!?");
             }
         }
 
@@ -1844,7 +1844,7 @@ namespace Architech
                 }
                 else if (pointerBlock && SetToCab(ref pointerBlock, ref PointerBatchCache))
                 {
-                    Debug.Log("New root " + pointerBlock.name);
+                    DebugArchitech.Log("New root " + pointerBlock.name);
                     inst.CarryBatchesNonMirror(pointerBlock);
                     List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
                     foreach (var item in allHeld)
@@ -1861,11 +1861,11 @@ namespace Architech
                     {
                         tank.rbody.AddForce((cachePointerHeld.trans.position - lastDraggedPosition) / Time.deltaTime, ForceMode.VelocityChange);
                     }
-                    Debug.Log("Made Tech from grabbed");
+                    DebugArchitech.Log("Made Tech from grabbed");
                 }
                 else
                 {
-                    Debug.LogError("Failed to make Tech from grabbed");
+                    DebugArchitech.LogError("Failed to make Tech from grabbed");
                     List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
                     foreach (var item in allHeld)
                     {
@@ -1878,7 +1878,7 @@ namespace Architech
             {
                 if (pointerBlock && SetToCab(ref pointerBlock, ref PointerBatchCache))
                 {
-                    Debug.Log("New root " + pointerBlock.name);
+                    DebugArchitech.Log("New root " + pointerBlock.name);
                     inst.CarryBatchesNonMirror(pointerBlock);
                     List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
                     foreach (var item in allHeld)
@@ -1895,11 +1895,11 @@ namespace Architech
                     {
                         tank.rbody.AddForce((cachePointerHeld.trans.position - lastDraggedPosition) / Time.deltaTime, ForceMode.VelocityChange);
                     }
-                    Debug.Log("Made Tech from grabbed");
+                    DebugArchitech.Log("Made Tech from grabbed");
                 }
                 else
                 {
-                    Debug.LogError("Failed to make Tech from grabbed");
+                    DebugArchitech.LogError("Failed to make Tech from grabbed");
                     List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
                     foreach (var item in allHeld)
                     {
@@ -1986,12 +1986,12 @@ namespace Architech
         {
             if (tank == null)
             {
-                Debug.LogError("Tank was NULL");
+                DebugArchitech.LogError("Tank was NULL");
                 return toAttach;
             }
             if (tank.blockman.blockCount == 0)
             {
-                Debug.LogError("Tank had no blocks");
+                DebugArchitech.LogError("Tank had no blocks");
                 return toAttach;
             }
             if (ManNetwork.IsNetworked)
@@ -2012,7 +2012,7 @@ namespace Architech
                         item.rbody.angularVelocity = Vector3.zero;
                     }
                     if (item.tank)
-                        Debug.LogError("Block " + item.name + " was already attached");
+                        DebugArchitech.LogError("Block " + item.name + " was already attached");
                     if (TryAttachLoose(tank, item))
                     {
                         //Debug.Log("Attached " + item.name + " to " + tank.name);
@@ -2030,12 +2030,12 @@ namespace Architech
         {
             if (tank == null)
             {
-                Debug.LogError("Tank was NULL");
+                DebugArchitech.LogError("Tank was NULL");
                 return false;
             }
             if (tank.blockman.blockCount == 0)
             {
-                Debug.LogError("Tank had no blocks");
+                DebugArchitech.LogError("Tank had no blocks");
                 return false;
             }
             if (ManNetwork.IsNetworked)
@@ -2060,7 +2060,7 @@ namespace Architech
                     //    Debug.LogError("Block " + item.name + " was already attached");
                     if (TryAttachLoose(tank, item))
                     {
-                        Debug.Log("Attached " + item.name + " to " + tank.name);
+                        DebugArchitech.Log("Attached " + item.name + " to " + tank.name);
                         toAttach.RemoveAt(attachPos);
                         Attaching = true;
                         hasAttached = true;
@@ -2076,12 +2076,12 @@ namespace Architech
         {
             if (tank == null)
             {
-                Debug.LogError("Tank was NULL");
+                DebugArchitech.LogError("Tank was NULL");
                 return toAttach;
             }
             if (tank.blockman.blockCount == 0)
             {
-                Debug.LogError("Tank had no blocks");
+                DebugArchitech.LogError("Tank had no blocks");
                 return toAttach;
             }
             if (ManNetwork.IsNetworked)
@@ -2099,10 +2099,10 @@ namespace Architech
                 {
                     TankBlock item = toAttach[attachPos];
                     if (item.tank)
-                        Debug.LogError("Block " + item.name + " was already attached");
+                        DebugArchitech.LogError("Block " + item.name + " was already attached");
                     if (TryAttachLoose(tank, item))
                     {
-                        Debug.Log("Attached " + item.name + " to " + tank.name);
+                        DebugArchitech.Log("Attached " + item.name + " to " + tank.name);
                         toAttach.RemoveAt(attachPos);
                         Attaching = true;
                         break;
@@ -2369,12 +2369,12 @@ namespace Architech
                 mem.r = SetCorrectRotation(bloc.trans.localRotation, deltaRot);
                 if (bloc.BlockType == BlockTypes.EXP_Cannon_Repulsor_444 && mem.r * Vector3.up != Vector3.up)
                 {   // block cannot be saved - illegal rotation.
-                    Debug.Log("TACtical_AI:  DesignMemory - " + tank.name + ": could not save " + bloc.name + " in blueprint due to illegal rotation.");
+                    DebugArchitech.Log("TACtical_AI:  DesignMemory - " + tank.name + ": could not save " + bloc.name + " in blueprint due to illegal rotation.");
                     continue;
                 }
                 output.Add(mem);
             }
-            Debug.Info("TACtical_AI:  DesignMemory - Saved " + tank.name + " to memory format");
+            DebugArchitech.Info("TACtical_AI:  DesignMemory - Saved " + tank.name + " to memory format");
 
             return output;
         }
@@ -2418,7 +2418,7 @@ namespace Architech
                 }
                 if (!worked)
                 {
-                    Debug.Log("Architech: SetCorrectRotation - Matching failed - OrthoRotation is missing edge case " + foA + " | " + upA);
+                    DebugArchitech.Log("Architech: SetCorrectRotation - Matching failed - OrthoRotation is missing edge case " + foA + " | " + upA);
                 }
             }
             return rot;
@@ -2448,7 +2448,7 @@ namespace Architech
                 }
                 if (!worked)
                 {
-                    Debug.Log("Architech: SetCorrectRotation - Matching failed - OrthoRotation is missing edge case " + foA + " | " + upA);
+                    DebugArchitech.Log("Architech: SetCorrectRotation - Matching failed - OrthoRotation is missing edge case " + foA + " | " + upA);
                 }
             }
             return rot;
@@ -2484,7 +2484,7 @@ namespace Architech
         /// <param name="TechMemor"></param>
         public static void TurboconstructExt(Tank tank, List<BlockCache> Mem, List<TankBlock> provided, bool fullyCharge = true)
         {
-            Debug.Log("TACtical_AI:  DesignMemory: Turboconstructing " + tank.name);
+            DebugArchitech.Log("TACtical_AI:  DesignMemory: Turboconstructing " + tank.name);
             int cBCount = tank.blockman.IterateBlocks().ToList().Count();
             int RepairAttempts = Mem.Count() - cBCount + 3;
             try
@@ -2511,7 +2511,7 @@ namespace Architech
 
                 //Debug.Log("TACtical AI: TurboRepair - Attempting to repair from infinity - " + typesToRepair.Count());
                 if (!TryAttachExistingBlockFromListExt(tank, Mem, ref typesMissing, ref provided))
-                    Debug.Log("TACtical AI: TurboRepair - attach attempt failed");
+                    DebugArchitech.Log("TACtical AI: TurboRepair - attach attempt failed");
             }
             return;
         }
@@ -2593,7 +2593,7 @@ namespace Architech
                     }
                     catch
                     {
-                        Debug.Log("BuildUtil: " + tank.name + ":  Tried to repair but block " + blockType.ToString() + " was not found!");
+                        DebugArchitech.Log("BuildUtil: " + tank.name + ":  Tried to repair but block " + blockType.ToString() + " was not found!");
                     }
                 }
                 return false;
@@ -2638,7 +2638,7 @@ namespace Architech
                 }
                 catch
                 {
-                    Debug.Log("BuildUtil: " + tank.name + ":  Tried to repair but block " + blockType.ToString() + " was not found!");
+                    DebugArchitech.Log("BuildUtil: " + tank.name + ":  Tried to repair but block " + blockType.ToString() + " was not found!");
                 }
             }
             return isAvail;

@@ -25,7 +25,7 @@ namespace Architech
         }
 
         private static bool patched = false;
-        static Harmony harmonyInstance = new Harmony("legionite.architech");
+        static Harmony harmonyInstance;
         //private static bool patched = false;
 #if STEAM
         public static void OfficialEarlyInit()
@@ -34,16 +34,18 @@ namespace Architech
 
             //Initiate the madness
             try
-            {
+            {   // init the mod 
+                Harmony hi = new Harmony("legionite.architech");
+                harmonyInstance = hi;
                 harmonyInstance.PatchAll();
                 //EdgePatcher(true);
-                Debug.Log("Architech: Patched");
+                DebugArchitech.Log("Architech: Patched");
                 patched = true;
             }
             catch (Exception e)
             {
-                Debug.Log("Architech: Error on patch");
-                Debug.Log(e);
+                DebugArchitech.Log("Architech: Error on patch");
+                DebugArchitech.Log(e);
             }
         }
 
@@ -58,16 +60,18 @@ namespace Architech
                 int patchStep = 0;
                 try
                 {
+                    Harmony hi = new Harmony("legionite.architech");
+                    harmonyInstance = hi;
                     harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
                     patchStep++;
                     //EdgePatcher(true);
-                    Debug.Log("Architech: Patched");
+                    DebugArchitech.Log("Architech: Patched");
                     patched = true;
                 }
                 catch (Exception e)
                 {
-                    Debug.Log("Architech: Error on patch " + patchStep);
-                    Debug.Log(e);
+                    DebugArchitech.Log("Architech: Error on patch " + patchStep);
+                    DebugArchitech.Log(e);
                 }
             }
             MirrorManager.Init();
@@ -81,13 +85,13 @@ namespace Architech
                 {
                     harmonyInstance.UnpatchAll("legionite.Architech");
                     //EdgePatcher(false);
-                    Debug.Log("Architech: UnPatched");
+                    DebugArchitech.Log("Architech: UnPatched");
                     patched = false;
                 }
                 catch (Exception e)
                 {
-                    Debug.Log("Architech: Error on UnPatch");
-                    Debug.Log(e);
+                    DebugArchitech.Log("Architech: Error on UnPatch");
+                    DebugArchitech.Log(e);
                 }
             }
             BuildUtil.DeInit();
@@ -128,27 +132,42 @@ namespace Architech
         bool isInit = false;
         public override bool HasEarlyInit()
         {
-            Debug.Log("Architech: CALLED");
+            DebugArchitech.Log("Architech: CALLED");
             return true;
         }
 
         // IDK what I should init here...
         public override void EarlyInit()
         {
-            Debug.Log("Architech: CALLED EARLYINIT");
+            DebugArchitech.Log("Architech: CALLED EARLYINIT");
             if (oInst == null)
             {
-                KickStart.OfficialEarlyInit();
-                oInst = this;
+                try
+                {
+                    KickStart.OfficialEarlyInit();
+                    oInst = this;
+                }
+                catch (Exception e) { 
+                    DebugArchitech.Log("Architech: " + e); 
+                }
             }
         }
         public override void Init()
         {
-            Debug.Log("Architech: CALLED INIT");
+            DebugArchitech.Log("Architech: CALLED INIT");
+            if (oInst == null)
+            {
+                try
+                {
+                    KickStart.OfficialEarlyInit();
+                    oInst = this;
+                }
+                catch (Exception e) { 
+                    DebugArchitech.Log("Architech: " + e);
+                }
+            }
             if (isInit)
                 return;
-            if (oInst == null)
-                oInst = this;
 
             KickStart.MainOfficialInit();
             isInit = true;

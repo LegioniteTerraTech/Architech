@@ -51,7 +51,7 @@ namespace Architech
                     inst.Added.Remove(item.m_PairedBlock);
                 }
             }
-            Debug.Assert(inst.Added.Count > 0, "Architech - MirrorManager: Failed to remove all added pairs!");
+            DebugArchitech.Assert(inst.Added.Count > 0, "Architech - MirrorManager: Failed to remove all added pairs!");
             inst.Added = null;
             inst.cachedNonVanilla = null;
             Destroy(inst.gameObject);
@@ -71,7 +71,7 @@ namespace Architech
                     }
                 }
             }
-            Debug.Log("Architech - MirrorManager: Loaded " + Added.Count + " blocks");
+            DebugArchitech.Log("Architech - MirrorManager: Loaded " + Added.Count + " blocks");
         }
 
         private static List<BlockTypes> GetNonVanillaBlocks()
@@ -159,7 +159,7 @@ namespace Architech
                 }
                 if (mirrorBT == BlockTypes.GSOAIController_111)
                 {
-                    Debug.Log("Architech - MirrorManager: Could not find any loaded block of such name "
+                    DebugArchitech.Log("Architech - MirrorManager: Could not find any loaded block of such name "
                         + (mirror.MirrorBlockName.NullOrEmpty() ? "NO_NAME" : mirror.MirrorBlockName));
                     return;
                 }
@@ -173,12 +173,12 @@ namespace Architech
                     m_PairedBlock = mirrorBT,
                 };
                 Added.Add(hostMirrorType);
-                Debug.Log("Architech - MirrorManager: Registered " + mirror.name);
+                DebugArchitech.Log("Architech - MirrorManager: Registered " + mirror.name);
                 return;
             }
             catch (Exception e)
             {
-                Debug.LogError("Architech - MirrorManager: Error " + e);
+                DebugArchitech.LogError("Architech - MirrorManager: Error " + e);
             }
         }
     }

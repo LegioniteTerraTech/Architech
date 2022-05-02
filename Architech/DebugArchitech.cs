@@ -6,13 +6,16 @@ using UnityEngine;
 
 namespace Architech
 {
-    internal static class Debug
+    internal static class DebugArchitech
     {
         private const string modName = "Architech";
 
         internal static bool LogAll = false;
         internal static bool ShouldLog = true;
-        private static bool LogDev = true;
+        private static bool LogDev = false;
+
+
+        // randome
 
         internal static void Info(string message)
         {
