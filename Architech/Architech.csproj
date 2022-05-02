@@ -93,6 +93,16 @@
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\workshop\content\285920\2571814511\0Harmony.dll</HintPath>
     </Reference>
   </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)'=='Release'OR'$(Configuration)'=='Debug'">
+    <!--> zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz </!-->
+    <!--> THE MATTERS BELOW ARE UNOFFICIAL </!-->
+    <!--> zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz </!-->
+    <Reference Include="0Harmony, Version=2.1.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <Private>False</Private>
+      <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\TerraTech\TerraTechWin64_Data\Managed\0Harmony.dll</HintPath>
+    </Reference>
+  </ItemGroup>
   <ItemGroup>
     <Compile Include="BuildUtil.cs" />
     <Compile Include="DebugArchitech.cs" />
