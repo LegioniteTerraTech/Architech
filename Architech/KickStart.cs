@@ -75,7 +75,7 @@ namespace Architech
                 }
             }
             MirrorManager.Init();
-            BuildUtil.Init();
+            ManBuildUtil.Init();
         }
         public static void DeInitALL()
         {
@@ -94,7 +94,7 @@ namespace Architech
                     DebugArchitech.Log(e);
                 }
             }
-            BuildUtil.DeInit();
+            ManBuildUtil.DeInit();
             MirrorManager.DeInit();
         }
 
@@ -115,7 +115,7 @@ namespace Architech
                 Debug.Log("Architech: Error on patch");
                 Debug.Log(e);
             }
-            BuildUtil.Init();
+            ManBuildUtil.Init();
         }
         public static void DelayedInitAll()
         {

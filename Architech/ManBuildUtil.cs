@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
 using System.Reflection;
 using UnityEngine;
 
@@ -14,13 +13,11 @@ namespace Architech
     /// Allows the player far more control over Tech construction.  Work in progress.
     /// Modified version of TAC_AI's AIERepair.DesignMemory's rebuilding functions.
     /// </summary>
-    internal class BuildUtil : MonoBehaviour
+    internal class ManBuildUtil : MonoBehaviour
     {
         static FieldInfo highL = typeof(ManPointer).GetField("m_HighlightPrefab", BindingFlags.NonPublic | BindingFlags.Instance);
 
         static FieldInfo paintBool = typeof(ManPointer).GetField("m_PaintingSkin", BindingFlags.NonPublic | BindingFlags.Instance);
-
-        static FieldInfo existingCursors = typeof(MousePointer).GetField("m_CursorDataSets", BindingFlags.NonPublic | BindingFlags.Instance);
 
 
 
@@ -28,7 +25,7 @@ namespace Architech
         private static bool DebugBlockRotations = false;
 
 
-        internal static BuildUtil inst;
+        internal static ManBuildUtil inst;
         private static ObjectHighlight OH;
         internal static Tank currentTank;
 
@@ -42,7 +39,7 @@ namespace Architech
         internal static bool ToggleMirrorMode => Input.GetKey(KeyCode.CapsLock);
         internal static bool IsHoveringMirrored => lastHovered;
         internal static bool IsHoldingMirrored => MirrorHeld;
-        internal bool IsHoldingBatch => PointerBatchCache.Count > 0 || MirrorBatchCache.Count > 0;
+        internal bool IsHoldingBatch => PointerBatchCache || MirrorBatchCache;
         internal static bool IsMirrorModeActive = false;
         internal static bool IsBatching => (IsBatchActive || IsGrabbingTechsActive) && !CabDetached && KickStart.IsIngame;
         internal static bool IsMirroring => IsMirrorModeActive && !IsGrabbingTechsActive && !BusyGrabbingTechs;
@@ -54,19 +51,20 @@ namespace Architech
 
         private static bool lastFrameButton = false;
         private static bool lastFrameButton2 = false;
+        internal static Vector3 lastDragVelo = Vector3.zero;
 
 
 
         private static bool PaintBlocks => ManPointer.inst.BuildMode == ManPointer.BuildingMode.PaintBlock && KickStart.IsIngame && !BusyGrabbingTechs;
         internal static Transform rBlock => currentTank.rootBlockTrans;
-        internal Vector3 tankCenter => rBlock.GetComponent<TankBlock>() ?
+        internal Vector3 currentTankCenter => rBlock.GetComponent<TankBlock>() ?
             SnapToMirrorAxi(rBlock.localPosition +
                 (rBlock.localRotation * rBlock.GetComponent<TankBlock>().BlockCellBounds.center))
             : currentTank.blockBounds.center;
 
         private static string lastDraggedName;
         private static Vector3 lastDraggedPosition = Vector3.zero;
-        private static TankBlock cachePointerHeld;
+        internal static TankBlock cachePointerHeld;
         private static TankBlock anonMirrorHeld;
         private static TankBlock MirrorHeld;
         private static bool InventoryBlock = false;
@@ -80,142 +78,44 @@ namespace Architech
 
         private static MirrorAngle cachedMirrorAngle = MirrorAngle.None;
 
-        private static List<KeyValuePair<TankBlock, BlockCache>> PointerBatchCache = new List<KeyValuePair<TankBlock, BlockCache>>();
-        private static List<KeyValuePair<TankBlock, BlockCache>> MirrorBatchCache = new List<KeyValuePair<TankBlock, BlockCache>>();
-        private static List<Texture2D> cursorCache = new List<Texture2D>();
+        private static BlockBatch PointerBatchCache;
+        private static BlockBatch MirrorBatchCache;
 
         public static void Init()
         {
             if (inst)
                 return;
-            inst = new GameObject("BuildUtil").AddComponent<BuildUtil>();
+            inst = new GameObject("BuildUtil").AddComponent<ManBuildUtil>();
             ManTechs.inst.PlayerTankChangedEvent.Subscribe(OnPlayerTechChanged);
             ManTechs.inst.TankBlockAttachedEvent.Subscribe(OnBlockPlaced);
             ManTechs.inst.TankBlockDetachedEvent.Subscribe(OnBlockRemoved);
+
             OH = Instantiate((ObjectHighlight)highL.GetValue(ManPointer.inst));
             OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
-            AddNewCursors();
+            CursorChanger.AddNewCursors();
+
+            ManBlockBatches.inst = new GameObject("BatchUtil").AddComponent<ManBlockBatches>();
+            ManBlockBatches.inst.Subcribble(true);
         }
         public static void DeInit()
         {
             if (!inst)
                 return;
+            ManBlockBatches.inst.Subcribble(false);
+            Destroy(ManBlockBatches.inst.gameObject);
+            ManBlockBatches.inst = null;
+
+            Destroy(OH.gameObject);
+            OH = null;
+
             ManTechs.inst.TankBlockDetachedEvent.Unsubscribe(OnBlockRemoved);
             ManTechs.inst.TankBlockAttachedEvent.Unsubscribe(OnBlockPlaced);
             ManTechs.inst.PlayerTankChangedEvent.Unsubscribe(OnPlayerTechChanged);
-            Destroy(OH.gameObject);
-            OH = null;
             Destroy(inst.gameObject);
             inst = null;
         }
 
 
-
-        /*
-            Default,
-            OverGrabbable,
-            HoldingGrabbable,
-            Painting,
-            SkinPainting,
-            SkinPaintingOverPaintable,
-            SkinTechPainting,
-            SkinTechPaintingOverPaintable,
-            Disabled
-            // NEW
-            OverTech
-            HoldTech
-            OverMirror
-            HoldMirror
-            OverBatch
-            HoldBatch
-            OverMirrorBatch
-            HoldMirrorBatch
-            MirroredPainting
-            OverMirroredPainting
-            PointerMirror
-            PointerBatch
-            PointerMirrorBatch
-        */
-        private static bool AddedNewCursors = false;
-        public static void AddNewCursors()
-        {
-            if (AddedNewCursors)
-                return;
-            MousePointer MP = FindObjectOfType<MousePointer>();
-            DebugArchitech.Assert(!MP, "BuildUtil: AddNewCursors - THE CURSOR DOES NOT EXIST!");
-            string DLLDirectory = new DirectoryInfo(Assembly.GetExecutingAssembly().Location).Parent.ToString();
-            DebugArchitech.LogDevOnly("BuildUtil: AddNewCursors - Path: " + DLLDirectory);
-            try
-            {
-                int LODLevel = 0;
-                MousePointer.CursorDataSet[] cursorLODs = (MousePointer.CursorDataSet[])existingCursors.GetValue(MP);
-                foreach (var item in cursorLODs)
-                {
-                    List<MousePointer.CursorData> cursorTypes = item.m_CursorData.ToList();
-
-                    DebugArchitech.Log(item.m_Name + " center: " + item.m_UseSoftwareCursor + " | " + cursorTypes.Count);
-                    foreach (var exists in cursorTypes)
-                    {
-                        try
-                        {
-                            DebugArchitech.Log(exists.m_Texture.name.NullOrEmpty() ? "NULL_NAME" : exists.m_Texture.name + " center: " + exists.m_Hotspot.x + "|" + exists.m_Hotspot.y);
-                        }
-                        catch
-                        {
-                            DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch case");
-                        }
-                    }
-
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverTech", LODLevel, new Vector2(0.5f, 0.5f));// 1
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldTech", LODLevel, new Vector2(0.5f, 0.5f));// 2
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirror", LODLevel, new Vector2(0.5f, 0.5f));// 3
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldMirror", LODLevel, new Vector2(0.5f, 0.5f));// 4
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverBatch", LODLevel, new Vector2(0.5f, 0.5f));// 5
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldBatch", LODLevel, new Vector2(0.5f, 0.5f));// 6
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirrorBatch", LODLevel, new Vector2(0.5f, 0.5f));// 7
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldMirrorBatch", LODLevel, new Vector2(0.5f, 0.5f));// 8
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "MirroredPainting", LODLevel, new Vector2(0.3f, 0.3f));// 9
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirroredPainting", LODLevel, new Vector2(0.3f, 0.3f));// 10
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "PointerMirror", LODLevel, Vector2.zero);// 11
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "PointerBatch", LODLevel, Vector2.zero);// 12
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "PointerMirrorBatch", LODLevel, Vector2.zero);// 13
-
-                    item.m_CursorData = cursorTypes.ToArray();
-                }
-            }
-            catch (Exception e) { DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch rest of cursor textures " + e); }
-            AddedNewCursors = true;
-        }
-        private static void TryAddNewCursor(List<MousePointer.CursorData> lodInst, string DLLDirectory, string name, int lodLevel, Vector2 center)
-        {
-            DebugArchitech.Log("BuildUtil: AddNewCursors - " + DLLDirectory + " for " + name + " " + lodLevel + " " + center);
-            try
-            {
-                List<FileInfo> FI = new DirectoryInfo(DLLDirectory).GetFiles().ToList();
-                Texture2D tex;
-                try
-                {
-                    tex = FileUtils.LoadTexture(FI.Find(delegate (FileInfo cand)
-                    { return cand.Name == name + lodLevel + ".png"; }).ToString());
-                    cursorCache.Add(tex);
-                }
-                catch
-                {
-                    DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch cursor texture LOD " + lodLevel + " for " + name);
-                    tex = FileUtils.LoadTexture(FI.Find(delegate (FileInfo cand)
-                    { return cand.Name == name + "2.png"; }).ToString());
-                    cursorCache.Add(tex);
-                }
-                MousePointer.CursorData CD = new MousePointer.CursorData
-                {
-                    m_Hotspot = center * tex.width,
-                    m_Texture = tex,
-                };
-                lodInst.Add(CD);
-                DebugArchitech.Log(name + " center: " + CD.m_Hotspot.x + "|" + CD.m_Hotspot.y);
-            }
-            catch { DebugArchitech.Assert(true, "BuildUtil: AddNewCursors - failed to fetch cursor texture " + name); }
-        }
 
         public static void OnPlayerTechChanged(Tank tank, bool yes)
         {
@@ -285,7 +185,7 @@ namespace Architech
                                 BCM = CenterOn(anonMirrorHeld, newlyRemoved);
                             }
                             BC.TidyUp();
-                            delayedUnsortedBatching.Add(new BatchCache
+                            delayedUnsortedBatching.Add(new MirrorCache
                             {
                                 originTank = tank,
                                 handledBlock = newlyRemoved,
@@ -336,7 +236,7 @@ namespace Architech
                             BCM = CenterOn(anonMirrorHeld, newlyRemoved);
                         }
                         BC.TidyUp();
-                        delayedUnsortedBatching.Add(new BatchCache
+                        delayedUnsortedBatching.Add(new MirrorCache
                         {
                             originTank = tank,
                             handledBlock = newlyRemoved,
@@ -365,7 +265,7 @@ namespace Architech
                 }
                 BlockCache BC = CenterOn(TB, newlyRemoved);
                 BlockCache BCM = BC;
-                delayedUnsortedBatching.Add(new BatchCache
+                delayedUnsortedBatching.Add(new MirrorCache
                 {
                     originTank = tank,
                     handledBlock = newlyRemoved,
@@ -380,8 +280,28 @@ namespace Architech
 
         public static List<KeyValuePair<Tank, TankBlock>> delayedAdd = new List<KeyValuePair<Tank, TankBlock>>();
         public static List<KeyValuePair<Tank, TankBlock>> delayedRemove = new List<KeyValuePair<Tank, TankBlock>>();
-        public static List<BatchCache> delayedUnsortedBatching = new List<BatchCache>();
+        public static List<MirrorCache> delayedUnsortedBatching = new List<MirrorCache>();
         public void Update()
+        {
+            UpdateBuildingTools();
+            if (ManPointer.inst.DraggingItem?.block && cachePointerHeld != ManPointer.inst.DraggingItem.block)
+            {
+                cachePointerHeld = ManPointer.inst.DraggingItem.block;
+                lastDraggedPosition = cachePointerHeld.trans.position;
+            }
+        }
+        public void FixedUpdate()
+        {
+            if (cachePointerHeld)
+            {
+                lastDragVelo = Vector3.ClampMagnitude((cachePointerHeld.trans.position - lastDraggedPosition) / Time.fixedDeltaTime, 120f);
+                lastDraggedPosition = cachePointerHeld.trans.position;
+            }
+            else
+                lastDragVelo = Vector3.zero;
+        }
+
+        public void UpdateBuildingTools()
         {
             if (ManNetwork.IsNetworked)
             {
@@ -403,7 +323,6 @@ namespace Architech
                 {
                     GrabEntireTechFromBlock();
                 }
-                lastDraggedPosition = ManPointer.inst.DraggingItem.block.trans.position;
             }
             else if (BusyGrabbingTechs)
             {
@@ -411,22 +330,7 @@ namespace Architech
             }
             else if (!IsBatching || !ManPointer.inst.DraggingItem?.block)
             {
-                if (PointerBatchCache.Count > 0)
-                {
-                    foreach (var item in PointerBatchCache)
-                    {
-                        PostGrab(item.Key);
-                    }
-                    PointerBatchCache.Clear();
-                }
-                if (MirrorBatchCache.Count > 0)
-                {
-                    foreach (var item in MirrorBatchCache)
-                    {
-                        PostGrab(item.Key);
-                    }
-                    MirrorBatchCache.Clear();
-                }
+                ReleaseAndTryMaintainBatches();
             }
 
             if (currentTank != ManPointer.inst.DraggingFocusTech)
@@ -470,176 +374,210 @@ namespace Architech
 
             if (currentTank == null)
             {   // we don't have a valid tech we are building on
-                if (ManPointer.inst.targetTank && Input.GetKey(KeyCode.Backslash))
-                {
-                    if (IsBatchActive)
-                        RebuildTechCabForwards(ManPointer.inst.targetTank);
-                    else
-                        SetNextPlacedRootCab(ManPointer.inst.targetTank);
-                }
-                if (IsMirroring)
-                {
-                    if (ManPointer.inst.targetVisible?.block)
-                    {
-                        TankBlock PlayerHeld = ManPointer.inst.targetVisible.block;
-                        TankBlock Mirror = MirroredFetch(PlayerHeld);
-                        if (Mirror)
-                        {
-                            if (lastHovered != Mirror)
-                            {
-                                ResetLastHovered();
-                                OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
-                                if (IsPaintingSkin)
-                                    Mirror.visible.Outline.EnableOutline(true, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
-                                else
-                                    OH.Highlight(Mirror.visible);
+                UpdateHasNoTech();
+            }
+            else
+            {   // We have a valid tech we are building on
+                UpdateHasValidTech();
+            }
+        }
 
-                                lastHovered = Mirror;
-                            }
-                            if (lastHovered)
-                            {
-                                if (IsPaintSkinsActive)
-                                {
-                                    OH.HideHighlight();
-                                    lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.Pointer);
-                                    lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
-                                    lastHovered.visible.Outline.EnableOutline(true, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
-                                    if (IsPaintingSkin)
-                                    {
-                                        //Debug.Log("PAINTING");
-                                        ManCustomSkins.inst.TryPaintBlock(lastHovered);
-                                    }
-                                }
-                                else
-                                    OH.Highlight(Mirror.visible);
-                            }
-                        }
-                        else
+        public void UpdateHasNoTech()
+        {
+            if (ManPointer.inst.targetTank && Input.GetKey(KeyCode.Backslash))
+            {
+                if (IsBatchActive)
+                    RebuildTechCabForwards(ManPointer.inst.targetTank);
+                else
+                    SetNextPlacedRootCab(ManPointer.inst.targetTank);
+            }
+            if (IsMirroring)
+            {
+                if (ManPointer.inst.targetVisible?.block)
+                {
+                    TankBlock PlayerHeld = ManPointer.inst.targetVisible.block;
+                    TankBlock Mirror = MirroredFetch(PlayerHeld);
+                    if (Mirror)
+                    {
+                        if (lastHovered != Mirror)
                         {
                             ResetLastHovered();
+                            OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
+                            if (IsPaintingSkin)
+                                Mirror.visible.Outline.EnableOutline(true, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
+                            else
+                                OH.Highlight(Mirror.visible);
+
+                            lastHovered = Mirror;
                         }
-                        attachFrameDelay = true;
-                        return;
-                    }
-                    else if (ManPointer.inst.DraggingItem?.block)
-                    {
-                        TankBlock PlayerHeld = ManPointer.inst.DraggingItem.block;
-                        UpdateMirrorHeldBlock(PlayerHeld, true);
-                        attachFrameDelay = true;
-                        return;
+                        if (lastHovered)
+                        {
+                            if (IsPaintSkinsActive)
+                            {
+                                OH.HideHighlight();
+                                lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.Pointer);
+                                lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
+                                lastHovered.visible.Outline.EnableOutline(true, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
+                                if (IsPaintingSkin)
+                                {
+                                    //Debug.Log("PAINTING");
+                                    ManCustomSkins.inst.TryPaintBlock(lastHovered);
+                                }
+                            }
+                            else
+                                OH.Highlight(Mirror.visible);
+                        }
                     }
                     else
                     {
                         ResetLastHovered();
                     }
+                    attachFrameDelay = true;
+                    return;
                 }
-                else if (IsBatching)
+                else if (ManPointer.inst.DraggingItem?.block)
                 {
-                    if (ManPointer.inst.targetVisible?.block)
-                    {
-                        TankBlock PlayerHeld = ManPointer.inst.targetVisible.block;
-                        CarryBatchesNonMirror(PlayerHeld);
-                        attachFrameDelay = true;
-                        return;
-                    }
-                    else if (ManPointer.inst.DraggingItem?.block)
-                    {
-                        TankBlock PlayerHeld = ManPointer.inst.DraggingItem.block;
-                        CarryBatchesNonMirror(PlayerHeld);
-                        attachFrameDelay = true;
-                        return;
-                    }
-                    else
-                    {
-                        ResetLastHovered();
-                    }
+                    TankBlock PlayerHeld = ManPointer.inst.DraggingItem.block;
+                    UpdateMirrorHeldBlock(PlayerHeld, true);
+                    attachFrameDelay = true;
+                    return;
                 }
                 else
                 {
                     ResetLastHovered();
                 }
-                if (!attachFrameDelay)
-                {
-                    UpdateMirrorHeldBlock(null, false);
-                }
-                else
-                {
-                    attachFrameDelay = false;
-                }
             }
-            else
-            {   // We have a valid tech we are building on
-                if (IsPaintSkinsActive)
+            else if (IsBatching)
+            {
+                if (ManPointer.inst.targetVisible?.block)
                 {
-                    DropAll(true);
-                    if (lastHovered)
-                    {
-                        lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.Pointer);
-                        lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
-                        lastHovered.visible.Outline.EnableOutline(true, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
-                        if (IsPaintingSkin)
-                        {
-                            //Debug.Log("PAINTING");
-                            ManCustomSkins.inst.TryPaintBlock(lastHovered);
-                        }
-                    }
-                    else
-                        OH.HideHighlight();
+                    TankBlock PlayerHeld = ManPointer.inst.targetVisible.block;
+                    CarryBatchesNonMirror(PlayerHeld);
+                    attachFrameDelay = true;
                     return;
-                }
-
-                if (Input.GetKey(KeyCode.Backslash))
-                {
-                    if (IsBatchActive)
-                        RebuildTechCabForwards(currentTank);
-                    else
-                        SetNextPlacedRootCab(currentTank);
                 }
                 else if (ManPointer.inst.DraggingItem?.block)
                 {
-                    TankBlock playerHeld = ManPointer.inst.DraggingItem.block;
-                    if (IsMirroring)
-                    {
-                        if (lastType != playerHeld.BlockType)
-                        {
-                            lastType = playerHeld.BlockType;
-                            pairType = GetPair(playerHeld);
-
-                            UpdateMirrorHeldBlock(playerHeld, true);
-                            if (!IsBlockAvailInInventory(currentTank, pairType))
-                            {   // no more blocks!
-                                ManSFX.inst.PlayUISFX(ManSFX.UISfxType.AnchorFailed);
-                            }
-                        }
-                        else
-                        {
-                            UpdateMirrorHeldBlock(playerHeld, true);
-                        }
-                    }
-                    else if (IsBatching)
-                    {
-                        if (MirrorBatchCache.Count > 0)
-                        {
-                            foreach (var item in MirrorBatchCache)
-                            {
-                                PostGrab(item.Key);
-                            }
-                            MirrorBatchCache.Clear();
-                        }
-                        if (MirrorHeld)
-                        {
-                            PostGrab(MirrorHeld);
-                            DropMirror();
-                        }
-                        CarryBatchesNonMirror(playerHeld);
-                    }
-                    else
-                        UpdateMirrorHeldBlock(playerHeld, false);
-
+                    TankBlock PlayerHeld = ManPointer.inst.DraggingItem.block;
+                    CarryBatchesNonMirror(PlayerHeld);
+                    attachFrameDelay = true;
+                    return;
                 }
                 else
-                    UpdateMirrorHeldBlock(null, false);
+                {
+                    ResetLastHovered();
+                }
             }
+            else
+            {
+                ResetLastHovered();
+            }
+            if (!attachFrameDelay)
+            {
+                UpdateMirrorHeldBlock(null, false);
+            }
+            else
+            {
+                attachFrameDelay = false;
+            }
+        }
+        public void UpdateHasValidTech()
+        {
+            if (IsPaintSkinsActive)
+            {
+                DropAll(true);
+                if (lastHovered)
+                {
+                    lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.Pointer);
+                    lastHovered.visible.Outline.EnableOutline(false, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
+                    lastHovered.visible.Outline.EnableOutline(true, cakeslice.Outline.OutlineEnableReason.CustomSkinHighlight);
+                    if (IsPaintingSkin)
+                    {
+                        //Debug.Log("PAINTING");
+                        ManCustomSkins.inst.TryPaintBlock(lastHovered);
+                    }
+                }
+                else
+                    OH.HideHighlight();
+                return;
+            }
+
+            if (Input.GetKey(KeyCode.Backslash))
+            {
+                if (IsBatchActive)
+                    RebuildTechCabForwards(currentTank);
+                else
+                    SetNextPlacedRootCab(currentTank);
+            }
+            else if (ManPointer.inst.DraggingItem?.block)
+            {
+                TankBlock playerHeld = ManPointer.inst.DraggingItem.block;
+                if (IsMirroring)
+                {
+                    if (lastType != playerHeld.BlockType)
+                    {
+                        lastType = playerHeld.BlockType;
+                        pairType = GetPair(playerHeld);
+
+                        UpdateMirrorHeldBlock(playerHeld, true);
+                        if (!TechUtils.IsBlockAvailInInventory(currentTank, pairType))
+                        {   // no more blocks!
+                            ManSFX.inst.PlayUISFX(ManSFX.UISfxType.AnchorFailed);
+                        }
+                    }
+                    else
+                    {
+                        UpdateMirrorHeldBlock(playerHeld, true);
+                    }
+                }
+                else if (IsBatching)
+                {
+                    if (MirrorBatchCache && MirrorBatchCache.Count > 0)
+                    {
+                        MirrorBatchCache.DropAllButRoot();
+                        MirrorBatchCache = null;
+                    }
+                    if (MirrorHeld)
+                    {
+                        PostGrabBlock(MirrorHeld);
+                        DropMirror();
+                    }
+                    CarryBatchesNonMirror(playerHeld);
+                }
+                else
+                    UpdateMirrorHeldBlock(playerHeld, false);
+
+            }
+            else
+                UpdateMirrorHeldBlock(null, false);
+        }
+
+
+        public static void TryPushToCursorBatch(BlockBatch BB)
+        {
+            if (PointerBatchCache)
+            {
+                DebugArchitech.Assert(true, "Architech: ManBuildUtil - Cannot nest BlockBatches!");
+                return;
+            }
+
+            PointerBatchCache = BB;
+        }
+        public static void TryPushToMirrorBatch(BlockBatch BB)
+        {
+            if (MirrorBatchCache)
+            {
+                DebugArchitech.Assert(true, "Architech: ManBuildUtil - Cannot nest BlockBatches!");
+                return;
+            }
+            if (MirrorHeld)
+            {
+                DebugArchitech.Assert(true, "Architech: ManBuildUtil - Cannot nest MirrorHeld!");
+                return;
+            }
+            DebugArchitech.Assert(!BB.Root, "Architech: ManBuildUtil - MirrorBatchCache's root IS NULL!");
+            MirrorHeld = BB.Root;
+            MirrorBatchCache = BB;
         }
 
         public void DropMirror()
@@ -648,29 +586,39 @@ namespace Architech
                 ManLooseBlocks.inst.RequestDespawnBlock(MirrorHeld, DespawnReason.Host);
             MirrorHeld = null;
         }
-        public void DropAll(bool dontExcludeHovered = false)
+        public void DropBatches()
+        {
+            if (PointerBatchCache)
+                PointerBatchCache.DropAllButRoot();
+            PointerBatchCache = null;
+
+            if (MirrorBatchCache)
+                MirrorBatchCache.DropAllButRoot();
+            MirrorBatchCache = null;
+        }
+        public void ReleaseAndTryMaintainBatches()
+        {
+            ManBlockBatches.TryMaintainDroppedMirror(MirrorBatchCache, ManBlockBatches.TryMaintainDropped(PointerBatchCache));
+            PointerBatchCache = null;
+            MirrorBatchCache = null;
+        }
+        public void DropAll(bool ExcludeHoverAndMaintainBatches = false)
         {
             OH.HideHighlight();
-            if (lastHovered && !dontExcludeHovered)
+            if (lastHovered && !ExcludeHoverAndMaintainBatches)
             {
                 ResetLastHovered();
             }
             if (MirrorHeld)
             {
-                PostGrab(MirrorHeld);
+                PostGrabBlock(MirrorHeld);
                 DropMirror();
             }
-            foreach (var item in PointerBatchCache)
-            {
-                PostGrab(item.Key);
-            }
-            PointerBatchCache.Clear();
-
-            foreach (var item in MirrorBatchCache)
-            {
-                PostGrab(item.Key);
-            }
-            MirrorBatchCache.Clear();
+            if (ExcludeHoverAndMaintainBatches)
+                ReleaseAndTryMaintainBatches();
+            else
+                DropBatches();
+            cachePointerHeld = null;
         }
         public void ApplyAttachQueue()
         {
@@ -774,26 +722,17 @@ namespace Architech
                     {
                         if (PaintBlocks)
                         {
-                            PostGrab(MirrorHeld);
+                            PostGrabBlock(MirrorHeld);
                             OH.HideHighlight();
                             DropMirror();
-                            foreach (var item in PointerBatchCache)
-                            {
-                                PostGrab(item.Key);
-                            }
-                            PointerBatchCache.Clear();
-                            foreach (var item in MirrorBatchCache)
-                            {
-                                PostGrab(item.Key);
-                            }
-                            MirrorBatchCache.Clear();
+                            ReleaseAndTryMaintainBatches();
 
-                            if (currentTank && IsBlockAvailInInventory(currentTank, pairType))
+                            if (currentTank && TechUtils.IsBlockAvailInInventory(currentTank, pairType))
                             {
                                 TankBlock newFake = ManLooseBlocks.inst.HostSpawnBlock(pairType, currentTank.boundsCentreWorld + (Vector3.up * 128), Quaternion.identity);
 
                                 MirrorHeld = newFake;
-                                PreGrab(MirrorHeld);
+                                PreGrabBlock(MirrorHeld);
                                 InventoryBlock = true;
                             }
                         }
@@ -806,11 +745,11 @@ namespace Architech
                 {
                     if (PaintBlocks)
                     {
-                        if (currentTank && IsBlockAvailInInventory(currentTank, pairType))
+                        if (currentTank && TechUtils.IsBlockAvailInInventory(currentTank, pairType))
                         {
                             TankBlock newFake = ManLooseBlocks.inst.HostSpawnBlock(pairType, currentTank.boundsCentreWorld + (Vector3.up * 128), Quaternion.identity);
                             MirrorHeld = newFake;
-                            PreGrab(MirrorHeld);
+                            PreGrabBlock(MirrorHeld);
                             cachedMirrorAngle = MirrorAngle.None;
                             OH.Highlight(MirrorHeld.visible);
                             InventoryBlock = true;
@@ -854,29 +793,23 @@ namespace Architech
                     MirroredSpace(toMirror, ref MirrorHeld);
                 }
                 else
+                {
                     cachedMirrorAngle = MirrorAngle.None;
+                    CarryBatchesNonMirror(toMirror);
+                }
             }
             else
             {
                 if (MirrorHeld)
                 {
-                    PostGrab(MirrorHeld);
+                    PostGrabBlock(MirrorHeld);
                     OH.HideHighlight();
                     DropMirror();
-                    foreach (var item in PointerBatchCache)
-                    {
-                        PostGrab(item.Key);
-                    }
-                    PointerBatchCache.Clear();
-                    foreach (var item in MirrorBatchCache)
-                    {
-                        PostGrab(item.Key);
-                    }
-                    MirrorBatchCache.Clear();
                 }
                 lastType = BlockTypes.GSOAIController_111;
                 pairType = BlockTypes.GSOAIController_111;
                 cachedMirrorAngle = MirrorAngle.None;
+                ReleaseAndTryMaintainBatches();
             }
         }
 
@@ -955,7 +888,7 @@ namespace Architech
         }
 
 
-        private static bool TryAttachLoose(Tank tankCase, TankBlock tryAttachThis)
+        private static bool TryAttachLoose(Tank tankCase, TankBlock tryAttachThis, bool ignoreTerrain = true)
         {
             Vector3 blockPosLocal = tankCase.trans.InverseTransformPoint(tryAttachThis.trans.position);
 
@@ -964,26 +897,31 @@ namespace Architech
             BC.p = blockPosLocal;
             BC.r = SetCorrectRotation(InvTransformRot(tryAttachThis.trans, tankCase));
             BC.TidyUp();
-            PostGrab(tryAttachThis);
+            PostGrabBlock(tryAttachThis);
 
-            return AttemptBlockAttachExt(tankCase, BC, tryAttachThis);
+            if (!ignoreTerrain)
+            {
+                Vector3 anonPos = tankCase.trans.TransformPoint(BC.p);
+                if (anonPos.y < ManWorld.inst.ProjectToGround(anonPos).y)
+                    return false;
+            }
+
+            return TechUtils.AttemptBlockAttachExt(tankCase, BC, tryAttachThis);
         }
 
 
 
         public void CarryBatchesNonMirror(TankBlock otherBlock)
         {
-            foreach (var item in PointerBatchCache)
-            {
-                HoldInRelation(otherBlock, item.Key, item.Value);
-            }
+            if (PointerBatchCache)
+                PointerBatchCache.UpdateHold();
         }
 
         private bool BatchPlacementNonMirror(Tank tankCase, TankBlock otherBlock)
         {
             bool placed = false;
             AttachAll(tankCase, otherBlock, PointerBatchCache);
-            PointerBatchCache.Clear();
+            PointerBatchCache = null;
             return placed;
         }
 
@@ -994,6 +932,7 @@ namespace Architech
             if (toCollect == MirrorHeld ||
                 (ManPointer.inst.DraggingItem?.block && ManPointer.inst.DraggingItem.block == toCollect))
                 return false;
+            TankBlock TB = ManPointer.inst.DraggingItem.block;
             if (IsMirroring && MirrorHeld)
             {   // handle Batching of Pointer and Mirror blocks
                 Vector3 blockLocalPos = tankCase.rootBlockTrans.InverseTransformPoint(toCollect.trans.position);
@@ -1005,28 +944,36 @@ namespace Architech
                     {   // Mirror Side
                         if (playerSideBC.p == mirrorSideBC.p)
                             DebugArchitech.LogError("BuildUtil: Could not fetch mirrored!");
-                        PreGrab(toCollect);
-                        MirrorBatchCache.Add(new KeyValuePair<TankBlock, BlockCache>(toCollect, mirrorSideBC));
+                        mirrorSideBC.inst = toCollect;
+                        if (!MirrorBatchCache)
+                            MirrorBatchCache = new BlockBatch(MirrorHeld);
+                        MirrorBatchCache.Add(mirrorSideBC);
                     }
                     else
                     {   // Player Side
-                        PreGrab(toCollect);
-                        PointerBatchCache.Add(new KeyValuePair<TankBlock, BlockCache>(toCollect, playerSideBC));
+                        playerSideBC.inst = toCollect;
+                        if (!PointerBatchCache)
+                            PointerBatchCache = new BlockBatch(TB);
+                        PointerBatchCache.Add(playerSideBC);
                     }
                 }
                 else
                 {
                     if (blockLocalPos.x > 0)
                     {   // Player Side
-                        PreGrab(toCollect);
-                        PointerBatchCache.Add(new KeyValuePair<TankBlock, BlockCache>(toCollect, playerSideBC));
+                        playerSideBC.inst = toCollect;
+                        if (!PointerBatchCache)
+                            PointerBatchCache = new BlockBatch(TB);
+                        PointerBatchCache.Add(playerSideBC);
                     }
                     else
                     {   // Mirror Side
                         if (playerSideBC.p == mirrorSideBC.p)
                             DebugArchitech.LogError("BuildUtil: Could not fetch mirrored!");
-                        PreGrab(toCollect);
-                        MirrorBatchCache.Add(new KeyValuePair<TankBlock, BlockCache>(toCollect, mirrorSideBC));
+                        mirrorSideBC.inst = toCollect;
+                        if (!MirrorBatchCache)
+                            MirrorBatchCache = new BlockBatch(MirrorHeld);
+                        MirrorBatchCache.Add(mirrorSideBC);
                     }
                 }
                 return true;
@@ -1034,8 +981,10 @@ namespace Architech
             else
             {   // handle Batching of only Pointer blocks
                 // Player Side
-                PreGrab(toCollect);
-                PointerBatchCache.Add(new KeyValuePair<TankBlock, BlockCache>(toCollect, playerSideBC));
+                playerSideBC.inst = toCollect;
+                if (!PointerBatchCache)
+                    PointerBatchCache = new BlockBatch(TB);
+                PointerBatchCache.Add(playerSideBC);
             }
             return false;
         }
@@ -1079,14 +1028,10 @@ namespace Architech
                 mirror.trans.position = otherBlock.trans.position + (Vector3.up * (otherBlock.BlockCellBounds.size.y + 1));
                 mirror.trans.rotation = otherBlock.trans.rotation;
 
-                foreach (var item in PointerBatchCache)
-                {
-                    HoldInRelation(otherBlock, item.Key, item.Value);
-                }
-                foreach (var item in MirrorBatchCache)
-                {
-                    HoldInRelation(mirror, item.Key, item.Value);
-                }
+                if (PointerBatchCache)
+                    PointerBatchCache.UpdateHold();
+                if (MirrorBatchCache)
+                    MirrorBatchCache.UpdateHold();
                 return;
             }
             Vector3 otherBlockPos = currentTank.trans.InverseTransformPoint(otherBlock.trans.position);
@@ -1094,6 +1039,7 @@ namespace Architech
             Vector3 blockCenter = otherBlock.BlockCellBounds.center;
             Quaternion rotOther = InvTransformRot(otherBlock.trans, currentTank);
 
+            Vector3 tankCenter = currentTankCenter;
             Vector3 centerDelta = otherBlockPos + (rotOther * blockCenter) - tankCenter;
 
             Quaternion rotMirror = MirroredRot(otherBlock, rotOther, mirror.BlockType == otherBlock.BlockType);
@@ -1117,14 +1063,18 @@ namespace Architech
             mirror.trans.position = currentTank.trans.TransformPoint(centerMirror);
             mirror.trans.rotation = TransformRot(rotMirror, currentTank);
 
-            foreach (var item in PointerBatchCache)
-            {
-                HoldInRelation(otherBlock, item.Key, item.Value);
-            }
-            foreach (var item in MirrorBatchCache)
-            {
-                HoldInRelation(mirror, item.Key, item.Value);
-            }
+            if (PointerBatchCache)
+                PointerBatchCache.UpdateHold();
+            if (MirrorBatchCache)
+                MirrorBatchCache.UpdateHold();
+        }
+
+        public static Vector3 TryGetCenter(Tank tankCase)
+        {
+            return tankCase.rootBlockTrans.GetComponent<TankBlock>() ?
+            SnapToMirrorAxi(tankCase.rootBlockTrans.localPosition +
+                (tankCase.rootBlockTrans.localRotation * tankCase.rootBlockTrans.GetComponent<TankBlock>().BlockCellBounds.center))
+            : tankCase.blockBounds.center;
         }
 
         private bool MirroredPlacement(Tank tankCase, TankBlock otherBlock)
@@ -1134,10 +1084,7 @@ namespace Architech
             Vector3 blockCenter = otherBlock.BlockCellBounds.center;
             Quaternion rotOther = otherBlock.trans.localRotation;
 
-            Vector3 tankCenter = tankCase.rootBlockTrans.GetComponent<TankBlock>() ?
-            SnapToMirrorAxi(tankCase.rootBlockTrans.localPosition +
-                (tankCase.rootBlockTrans.localRotation * tankCase.rootBlockTrans.GetComponent<TankBlock>().BlockCellBounds.center))
-            : tankCase.blockBounds.center;
+            Vector3 tankCenter = TryGetCenter(tankCase);
 
             Vector3 centerDelta = (rotOther * blockCenter) + otherBlockPos - tankCenter;
 
@@ -1151,10 +1098,10 @@ namespace Architech
                 newBlock = MirrorHeld;
                 //Debug.Log("MirroredPlacement - Attached held real block");
 
-                PostGrab(MirrorHeld);
+                PostGrabBlock(MirrorHeld);
                 MirrorHeld = null;
             }
-            else if (IsBlockAvailInInventory(tankCase, BC.t))
+            else if (TechUtils.IsBlockAvailInInventory(tankCase, BC.t))
             {
                 fromInv = true;
                 newBlock = ManLooseBlocks.inst.HostSpawnBlock(BC.t, tankCase.boundsCentreWorld + (Vector3.up * 128), Quaternion.identity);
@@ -1184,15 +1131,15 @@ namespace Architech
             }
 
             lastAttached = newBlock;
-            if (AttemptBlockAttachExt(tankCase, BC, newBlock))
+            if (TechUtils.AttemptBlockAttachExt(tankCase, BC, newBlock))
             {
                 if (fromInv)
-                    IsBlockAvailInInventory(tankCase, BC.t, true);
+                    TechUtils.IsBlockAvailInInventory(tankCase, BC.t, true);
 
                 AttachAll(tankCase, otherBlock, PointerBatchCache);
-                PointerBatchCache.Clear();
+                PointerBatchCache = null;
                 AttachAll(tankCase, newBlock, MirrorBatchCache);
-                MirrorBatchCache.Clear();
+                MirrorBatchCache = null;
                 return true;
             }
             else
@@ -1200,13 +1147,11 @@ namespace Architech
                 if (fromInv)
                     ManLooseBlocks.inst.HostDestroyBlock(newBlock);
 
-                AttachAll(tankCase, otherBlock, MirrorBatchCache);
-                PointerBatchCache.Clear();
-                foreach (var item in MirrorBatchCache)
-                {
-                    PostGrab(item.Key);
-                }
-                MirrorBatchCache.Clear();
+                AttachAll(tankCase, otherBlock, PointerBatchCache);
+                PointerBatchCache = null;
+                if (MirrorBatchCache)
+                    MirrorBatchCache.DropAllButRoot();
+                MirrorBatchCache = null;
                 /*
                 newBlock.trans.position = tankCase.trans.TransformPoint(centerMirror + (rotMirror * blockCenter));
                 newBlock.trans.rotation = TransformRot(rotMirror);
@@ -1228,10 +1173,7 @@ namespace Architech
             Vector3 blockCenter = toMirror.BlockCellBounds.center;
             Quaternion rotOther = toMirror.trans.localRotation;
 
-            Vector3 tankCenter = tankCase.rootBlockTrans.GetComponent<TankBlock>() ?
-            SnapToMirrorAxi(tankCase.rootBlockTrans.localPosition +
-                (tankCase.rootBlockTrans.localRotation * tankCase.rootBlockTrans.GetComponent<TankBlock>().BlockCellBounds.center))
-            : tankCase.blockBounds.center;
+            Vector3 tankCenter = TryGetCenter(tankCase);
 
             Vector3 centerDelta = (rotOther * blockCenter) + otherBlockPos - tankCenter;
 
@@ -1285,7 +1227,7 @@ namespace Architech
                     return blockOnOtherSide;
                 }
                 else
-                    DebugArchitech.Assert(true, "BuildUtil: GetMirroredBlock - blockOnOtherSide was not a valid mirror block. Perhaps lastHovered was incorrect?");
+                    DebugArchitech.Log("BuildUtil: GetMirroredBlock - blockOnOtherSide was not a valid mirror block. Perhaps lastHovered was incorrect?");
             }
             else
                 DebugArchitech.Assert(true, "BuildUtil: GetMirroredBlock - blockOnOtherSide was null?");
@@ -1299,14 +1241,14 @@ namespace Architech
             {
                 ResetLastHovered();
                 lastDetached = blockOnOtherSide;
-                AttemptBlockDetachExt(tankCase, blockOnOtherSide);
+                TechUtils.AttemptBlockDetachExt(tankCase, blockOnOtherSide);
                 if (!blockOnOtherSide.IsAttached)
                 {
                     if (MirrorHeld == null)
                     {
                         MirrorHeld = blockOnOtherSide;
 
-                        PreGrab(MirrorHeld);
+                        PreGrabBlock(MirrorHeld);
                         InventoryBlock = false;
                         cachedMirrorAngle = MirrorAngle.None;
                     }
@@ -1740,42 +1682,33 @@ namespace Architech
             Destroy(gO, Time.deltaTime);
         }
 
-        public static void PreGrab(TankBlock TB)
+        public static void PreGrabBlock(TankBlock TB)
         {
             if (TB.GetComponent<ColliderSwapper>())
                 TB.GetComponent<ColliderSwapper>().EnableCollision(false);
             if (TB.rbody)
                 TB.rbody.useGravity = false;
         }
-        public static void PostGrab(TankBlock TB)
+        public static void StopMovement(TankBlock TB)
+        {
+            if (TB.rbody)
+            {
+                TB.rbody.useGravity = true;
+                TB.rbody.velocity = Vector3.zero;
+                TB.rbody.angularVelocity = Vector3.zero;
+            }
+        }
+        public static void PostGrabBlock(TankBlock TB)
         {
             try
             {
                 if (TB.GetComponent<ColliderSwapper>())
-                    TB.GetComponent<ColliderSwapper>().EnableCollision(true);
-                if (TB.rbody)
-                {
-                    TB.rbody.useGravity = true;
-                    TB.rbody.velocity = Vector3.zero;
-                    TB.rbody.angularVelocity = Vector3.zero;
-                }
+                    TB.GetComponent<ColliderSwapper>().EnableCollision(true); 
+                StopMovement(TB);
             }
             catch
             {
                 DebugArchitech.LogError("BuildUtil:  Block was expected but it was null!  Was it destroyed in tranzit!?");
-            }
-        }
-
-        public static void HoldInRelation(TankBlock master, TankBlock minion, BlockCache BC)
-        {
-            try
-            {
-                minion.trans.rotation = master.trans.rotation * BC.r;
-                minion.trans.position = master.trans.position + (master.trans.rotation * BC.p);
-            }
-            catch
-            {
-                DebugArchitech.LogError("BuildUtil: HoldInRelation - Block was expected but it was null!  Was it destroyed in tranzit!?");
             }
         }
 
@@ -1806,111 +1739,134 @@ namespace Architech
                 return; // DO NOT ALLOW THE PLAYER TO GRAB THEIR OWN TECH and enemies in non-creative block it.
             BusyGrabbingTechs = true;
             lastDraggedName = tank.name;
+            if (!PointerBatchCache)
+                PointerBatchCache = new BlockBatch(pointerBlock);
             List<TankBlock> cache = DitchAllBlocks(tank, false);
-            foreach (var item in cache)
-            {
-                if (pointerBlock != item)
-                    PreGrab(item);
-            }
-            BatchCenterOn(pointerBlock, cache, out List<KeyValuePair<TankBlock, BlockCache>> batch);
-            PointerBatchCache.AddRange(batch);
+            PointerBatchCache.BatchCenterOn(pointerBlock, cache);
             cachePointerHeld = pointerBlock;
+            PreGrabBlock(cachePointerHeld);
         }
 
         public static void TryCreateTechFromPointerBlocks()
         {
             TankBlock pointerBlock = cachePointerHeld;
             ManPointer.inst.ReleaseDraggingItem(false);
+            if (!PointerBatchCache)
+                return;
             if (!IsGrabbingTechsActive)
             {
-                List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
-                foreach (var item in allHeld)
-                {
-                    PostGrab(item);
-                }
-                PointerBatchCache.Clear();
+                DebugArchitech.Log("Architech: TryCreateTechFromPointerBlocks - Tech holding button delberately released before left mouse");
+                PointerBatchCache.DropAllButRoot();
+                PointerBatchCache = null;
+                cachePointerHeld = null;
+                BusyGrabbingTechs = false;
+                return;
+            }
+            if (!pointerBlock)
+            {
+                DebugArchitech.Log("Architech: TryCreateTechFromPointerBlocks - pointerBlock IS NULL somehow");
+                PointerBatchCache.DropAllButRoot();
+                PointerBatchCache = null;
+                cachePointerHeld = null;
+                BusyGrabbingTechs = false;
+                return;
             }
             if (pointerBlock.tank)
             {
                 TryReattachAll(pointerBlock.tank, pointerBlock, PointerBatchCache);
-                PointerBatchCache.Clear();
+                PointerBatchCache = null;
             }
             else if (currentTank)
             {
+                PointerBatchCache.InsureAboveGround();
                 if (ManTechBuilder.inst.IsBlockHeldInPosition(pointerBlock))
                 {
                     TryReattachAll(currentTank, pointerBlock, PointerBatchCache);
-                    PointerBatchCache.Clear();
+                    PointerBatchCache = null;
+                }
+                else if (pointerBlock && SetToAnchor(ref pointerBlock, ref PointerBatchCache))
+                {
+                    DebugArchitech.Log("New root " + pointerBlock.name);
+                    inst.CarryBatchesNonMirror(pointerBlock);
+                    PointerBatchCache.DropAllButRoot();
+                    Tank tank = pointerBlock.GetComponentInParent<Tank>();
+                    if (!tank)
+                        tank = ManSpawn.inst.WrapSingleBlock(null, pointerBlock, ManPlayer.inst.PlayerTeam,
+                            lastDraggedName.NullOrEmpty() ? "Grabbed Tech" : lastDraggedName);
+                    TryReattachAll(tank, pointerBlock, PointerBatchCache);
+                    tank.FixupAnchors(true);
+                    PointerBatchCache = null;
+                    DebugArchitech.Log("Made Tech from grabbed");
                 }
                 else if (pointerBlock && SetToCab(ref pointerBlock, ref PointerBatchCache))
                 {
                     DebugArchitech.Log("New root " + pointerBlock.name);
                     inst.CarryBatchesNonMirror(pointerBlock);
-                    List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
-                    foreach (var item in allHeld)
-                    {
-                        PostGrab(item);
-                    }
+                    PointerBatchCache.DropAllButRoot();
                     Tank tank = pointerBlock.GetComponentInParent<Tank>();
                     if (!tank)
                         tank = ManSpawn.inst.WrapSingleBlock(null, pointerBlock, ManPlayer.inst.PlayerTeam,
                             lastDraggedName.NullOrEmpty() ? "Grabbed Tech" : lastDraggedName);
                     TryReattachAll(tank, pointerBlock, PointerBatchCache);
-                    PointerBatchCache.Clear();
+                    PointerBatchCache = null;
                     if (tank.rbody)
                     {
-                        tank.rbody.AddForce((cachePointerHeld.trans.position - lastDraggedPosition) / Time.deltaTime, ForceMode.VelocityChange);
+                        tank.rbody.velocity = lastDragVelo;
                     }
                     DebugArchitech.Log("Made Tech from grabbed");
                 }
                 else
                 {
-                    DebugArchitech.LogError("Failed to make Tech from grabbed");
-                    List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
-                    foreach (var item in allHeld)
-                    {
-                        PostGrab(item);
-                    }
-                    PointerBatchCache.Clear();
+                    DebugArchitech.LogError("Failed to make Tech from grabbed (currentTank)");
+                    PointerBatchCache.DropAllButRoot();
+                    PointerBatchCache = null;
                 }
             }
             else
             {
-                if (pointerBlock && SetToCab(ref pointerBlock, ref PointerBatchCache))
+                PointerBatchCache.InsureAboveGround();
+                if (pointerBlock && SetToAnchor(ref pointerBlock, ref PointerBatchCache))
                 {
                     DebugArchitech.Log("New root " + pointerBlock.name);
                     inst.CarryBatchesNonMirror(pointerBlock);
-                    List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
-                    foreach (var item in allHeld)
-                    {
-                        PostGrab(item);
-                    }
+                    PointerBatchCache.DropAllButRoot();
                     Tank tank = pointerBlock.GetComponentInParent<Tank>();
                     if (!tank)
                         tank = ManSpawn.inst.WrapSingleBlock(null, pointerBlock, ManPlayer.inst.PlayerTeam,
                             lastDraggedName.NullOrEmpty() ? "Grabbed Tech" : lastDraggedName);
                     TryReattachAll(tank, pointerBlock, PointerBatchCache);
-                    PointerBatchCache.Clear();
+                    tank.FixupAnchors(true);
+                    PointerBatchCache = null;
+                    DebugArchitech.Log("Made Tech from grabbed");
+                }
+                else if (pointerBlock && SetToCab(ref pointerBlock, ref PointerBatchCache))
+                {
+                    DebugArchitech.Log("New root " + pointerBlock.name);
+                    inst.CarryBatchesNonMirror(pointerBlock);
+                    PointerBatchCache.DropAllButRoot();
+                    Tank tank = pointerBlock.GetComponentInParent<Tank>();
+                    if (!tank)
+                        tank = ManSpawn.inst.WrapSingleBlock(null, pointerBlock, ManPlayer.inst.PlayerTeam,
+                            lastDraggedName.NullOrEmpty() ? "Grabbed Tech" : lastDraggedName);
+                    TryReattachAll(tank, pointerBlock, PointerBatchCache);
+                    PointerBatchCache = null;
                     if (tank.rbody)
                     {
-                        tank.rbody.AddForce((cachePointerHeld.trans.position - lastDraggedPosition) / Time.deltaTime, ForceMode.VelocityChange);
+                        tank.rbody.velocity = lastDragVelo;
                     }
                     DebugArchitech.Log("Made Tech from grabbed");
                 }
                 else
                 {
                     DebugArchitech.LogError("Failed to make Tech from grabbed");
-                    List<TankBlock> allHeld = PointerBatchCache.ConvertAll(x => x.Key);
-                    foreach (var item in allHeld)
-                    {
-                        PostGrab(item);
-                    }
-                    PointerBatchCache.Clear();
+                    PointerBatchCache.DropAllButRoot();
+                    PointerBatchCache = null;
                 }
             }
             cachePointerHeld = null;
             BusyGrabbingTechs = false;
         }
+
 
         public static void DetachCabSectionsFromGrabbed()
         {
@@ -1936,6 +1892,8 @@ namespace Architech
             }
 
             cache = TryReattachAll(tank, cache);
+            if (!PointerBatchCache)
+                PointerBatchCache = new BlockBatch(tank.blockman.GetRootBlock());
             foreach (var item in cache)
             {
                 Rigidbody rbody = item.GetComponent<Rigidbody>();
@@ -1950,13 +1908,13 @@ namespace Architech
                     if (anonMirrorHeld)
                     {
                         BC = CenterOn(anonMirrorHeld, item);
-                        MirrorBatchCache.Insert(0, new KeyValuePair<TankBlock, BlockCache>(item, BC));
+                        MirrorBatchCache.batch.Insert(0, BC);
                     }
                 }
                 else
                 {
                     BC = CenterOn(pointerBlock, item);
-                    PointerBatchCache.Insert(0, new KeyValuePair<TankBlock, BlockCache>(item, BC));
+                    PointerBatchCache.batch.Insert(0, BC);
                 }
             }
         }
@@ -1982,7 +1940,7 @@ namespace Architech
             }
             return toDetach;
         }
-        public static List<KeyValuePair<TankBlock, BlockCache>> TryReattachAll(Tank tank, TankBlock toCenterOn, List<KeyValuePair<TankBlock, BlockCache>> toAttach)
+        public static List<BlockCache> TryReattachAll(Tank tank, TankBlock toCenterOn, List<BlockCache> toAttach)
         {
             if (tank == null)
             {
@@ -2004,8 +1962,8 @@ namespace Architech
                 int attachNeeded = toAttach.Count;
                 for (int attachPos = 0; attachPos < attachNeeded;)
                 {
-                    TankBlock item = toAttach[attachPos].Key;
-                    HoldInRelation(root, item, toAttach[attachPos].Value);
+                    TankBlock item = toAttach[attachPos].inst;
+                    toAttach[attachPos].HoldInRelation(root);
                     if (item.rbody)
                     {
                         item.rbody.velocity = Vector3.zero;
@@ -2013,7 +1971,7 @@ namespace Architech
                     }
                     if (item.tank)
                         DebugArchitech.LogError("Block " + item.name + " was already attached");
-                    if (TryAttachLoose(tank, item))
+                    if (TryAttachLoose(tank, item, false))
                     {
                         //Debug.Log("Attached " + item.name + " to " + tank.name);
                         toAttach.RemoveAt(attachPos);
@@ -2026,7 +1984,7 @@ namespace Architech
             } while (Attaching);
             return toAttach;
         }
-        public static bool AttachAll(Tank tank, TankBlock toCenterOn, List<KeyValuePair<TankBlock, BlockCache>> toAttach)
+        public static bool AttachAll(Tank tank, TankBlock toCenterOn, BlockBatch BB)
         {
             if (tank == null)
             {
@@ -2038,8 +1996,9 @@ namespace Architech
                 DebugArchitech.LogError("Tank had no blocks");
                 return false;
             }
-            if (ManNetwork.IsNetworked)
+            if (ManNetwork.IsNetworked || !BB)
                 return false;
+            List<BlockCache> toAttach = BB;
             TankBlock root = toCenterOn;
             bool Attaching;
             bool hasAttached = false;
@@ -2049,13 +2008,8 @@ namespace Architech
                 int attachNeeded = toAttach.Count;
                 for (int attachPos = 0; attachPos < attachNeeded;)
                 {
-                    TankBlock item = toAttach[attachPos].Key;
-                    HoldInRelation(root, item, toAttach[attachPos].Value);
-                    if (item.rbody)
-                    {
-                        item.rbody.velocity = Vector3.zero;
-                        item.rbody.angularVelocity = Vector3.zero;
-                    }
+                    TankBlock item = toAttach[attachPos].inst;
+                    toAttach[attachPos].HoldInRelation(root);
                     //if (item.tank)
                     //    Debug.LogError("Block " + item.name + " was already attached");
                     if (TryAttachLoose(tank, item))
@@ -2137,49 +2091,79 @@ namespace Architech
             }
         }
 
-        public static bool SetToCab(ref TankBlock mainHeld, ref List<KeyValuePair<TankBlock, BlockCache>> toSearch)
+        public static bool SetToCab(ref TankBlock mainHeld, ref BlockBatch toSearch)
         {
+            if (!toSearch)
+                return false;
             if (mainHeld.GetComponent<ModuleTechController>())
                 return true;
             foreach (var item in toSearch)
             {
-                if (!item.Key)
+                if (!item.inst)
                     continue;
-                if (item.Key.GetComponent<ModuleTechController>())
+                if (item.inst.GetComponent<ModuleTechController>())
                 {
-                    List<TankBlock> allHeld = toSearch.ConvertAll(x => x.Key);
-                    allHeld.Add(mainHeld);
-                    BatchCenterOn(item.Key, allHeld, out toSearch);
-                    mainHeld = item.Key;
+                    mainHeld = toSearch.BatchReCenterOn(item.inst);
                     return true;
                 }
             }
             return false;
         }
-        public static void BatchCenterOn(TankBlock main, List<TankBlock> allHeld, out List<KeyValuePair<TankBlock, BlockCache>> children)
+
+        public static bool SetToAnchor(ref TankBlock mainHeld, ref BlockBatch toSearch)
         {
-            children = new List<KeyValuePair<TankBlock, BlockCache>>();
-            foreach (var item in allHeld)
+            if (!toSearch)
             {
-                if (item == main)
-                {
-                    PostGrab(item);
-                    continue;
-                }
-                PreGrab(item);
-                children.Add(new KeyValuePair<TankBlock, BlockCache>(item, CenterOn(main, item)));
+                return false;
             }
+            float height = float.MaxValue;
+            TankBlock best = null;
+            var anchor = mainHeld.GetComponent<ModuleAnchor>();
+            if (anchor && CanAnchor(anchor))
+            {
+                DebugArchitech.Info("Compare " + anchor.Anchor.GroundPointInitial.y + " vs " + height);
+                if (anchor.Anchor.GroundPointInitial.y < height)
+                {
+                    height = anchor.Anchor.GroundPointInitial.y;
+                    best = mainHeld;
+                }
+            }
+            foreach (var item in toSearch)
+            {
+                if (!item.inst)
+                    continue;
+                anchor = item.inst.GetComponent<ModuleAnchor>();
+                if (anchor && CanAnchor(anchor))
+                {
+                    DebugArchitech.Info("Compare " + anchor.Anchor.GroundPointInitial.y + " vs " + height);
+                    if (anchor.Anchor.GroundPointInitial.y < height)
+                    {
+                        height = anchor.Anchor.GroundPointInitial.y;
+                        best = item.inst;
+                    }
+                }
+            }
+            if (best)
+            {
+                mainHeld = toSearch.BatchReCenterOn(best);
+                DebugArchitech.Info("Best " + mainHeld.GetComponent<ModuleAnchor>().Anchor.GroundPointInitial.y);
+            }
+            return best;
         }
+        public static bool CanAnchor(ModuleAnchor anchor)
+        {
+            float height = ManWorld.inst.ProjectToGround(anchor.Anchor.GroundPointInitial).y - anchor.Anchor.GroundPointInitial.y;
+            DebugArchitech.Info("Compare " + (height - anchor.Anchor.m_SnapToleranceDown) + " | " 
+                + (height + anchor.Anchor.m_SnapToleranceUp) + " vs " + ManWorld.inst.ProjectToGround(anchor.Anchor.GroundPointInitial).y);
+            return height <= anchor.Anchor.m_SnapToleranceUp
+                && height >= -anchor.Anchor.m_SnapToleranceDown;
+        }
+
         public static BlockCache CenterOn(TankBlock mainHeld, TankBlock toSet)
         {
-            BlockCache BC = new BlockCache
-            {
-                t = toSet.BlockType,
-                p = mainHeld.trans.InverseTransformPoint(toSet.trans.position),
-                r = SetCorrectRotation(InvTransformRot(toSet.trans, mainHeld.trans)),
-            };
-            BC.TidyUp();
-            return BC;
+            return new BlockCache(toSet, toSet.BlockType,
+                mainHeld.trans.InverseTransformPoint(toSet.trans.position),
+                SetCorrectRotation(InvTransformRot(toSet.trans, mainHeld.trans)));
         }
 
 
@@ -2257,7 +2241,7 @@ namespace Architech
                 return;
             List<BlockCache> mem = TechToForwardsCache(tank, out TankBlock rBlock);
             List<TankBlock> blocks = DitchAllBlocks(tank, true);
-            TurboconstructExt(tank, mem, blocks, false);
+            TechUtils.TurboconstructExt(tank, mem, blocks, false);
             tank.blockman.SetRootBlock(rBlock);
             HighlightBlock(tank.blockman.GetRootBlock());
         }
@@ -2455,195 +2439,6 @@ namespace Architech
         }
 
 
-        public static List<BlockTypes> GetMissingBlockTypesExt(List<BlockCache> Mem, List<TankBlock> cBlocks)
-        {
-            List<BlockTypes> typesToRepair = new List<BlockTypes>();
-            int toFilter = Mem.Count();
-            for (int step = 0; step < toFilter; step++)
-            {
-                typesToRepair.Add(Mem.ElementAt(step).t);
-            }
-            typesToRepair = typesToRepair.Distinct().ToList();
-
-            List<BlockTypes> typesMissing = new List<BlockTypes>();
-            int toFilter2 = typesToRepair.Count();
-            for (int step = 0; step < toFilter2; step++)
-            {
-                int present = cBlocks.FindAll(delegate (TankBlock cand) { return typesToRepair[step] == cand.BlockType; }).Count;
-
-                int mem = Mem.FindAll(delegate (BlockCache cand) { return typesToRepair[step] == cand.t; }).Count;
-                if (mem > present)// are some blocks not accounted for?
-                    typesMissing.Add(typesToRepair[step]);
-            }
-            return typesMissing;
-        }
-        /// <summary>
-        /// Builds a Tech instantly, no requirements
-        /// </summary>
-        /// <param name="tank"></param>
-        /// <param name="TechMemor"></param>
-        public static void TurboconstructExt(Tank tank, List<BlockCache> Mem, List<TankBlock> provided, bool fullyCharge = true)
-        {
-            DebugArchitech.Log("TACtical_AI:  DesignMemory: Turboconstructing " + tank.name);
-            int cBCount = tank.blockman.IterateBlocks().ToList().Count();
-            int RepairAttempts = Mem.Count() - cBCount + 3;
-            try
-            {
-                List<TankBlock> cBlocks = tank.blockman.IterateBlocks().ToList();
-                List<BlockTypes> typesMissing = GetMissingBlockTypesExt(Mem, cBlocks);
-                while (RepairAttempts > 0)
-                {
-                    TurboRepairExt(tank, Mem, ref typesMissing, ref provided);
-                    RepairAttempts--;
-                }
-            }
-            catch { return; }
-            if (fullyCharge)
-                tank.EnergyRegulator.SetAllStoresAmount(1);
-        }
-        public static void TurboRepairExt(Tank tank, List<BlockCache> Mem, ref List<BlockTypes> typesMissing, ref List<TankBlock> provided)
-        {
-            List<TankBlock> cBlocks = tank.blockman.IterateBlocks().ToList();
-            int savedBCount = Mem.Count;
-            int cBCount = cBlocks.Count;
-            if (savedBCount != cBCount)
-            {
-
-                //Debug.Log("TACtical AI: TurboRepair - Attempting to repair from infinity - " + typesToRepair.Count());
-                if (!TryAttachExistingBlockFromListExt(tank, Mem, ref typesMissing, ref provided))
-                    DebugArchitech.Log("TACtical AI: TurboRepair - attach attempt failed");
-            }
-            return;
-        }
-        public static bool TryAttachExistingBlockFromListExt(Tank tank, List<BlockCache> mem, ref List<BlockTypes> typesMissing, ref List<TankBlock> foundBlocks, bool denySD = false)
-        {
-            int attachAttempts = foundBlocks.Count();
-            //Debug.Log("TACtical AI: RepairLerp - Found " + attachAttempts + " loose blocks to use");
-            for (int step = 0; step < attachAttempts; step++)
-            {
-                TankBlock foundBlock = foundBlocks[step];
-                BlockTypes BT = foundBlock.BlockType;
-                if (!typesMissing.Contains(BT))
-                    continue;
-                bool attemptW;
-                // if we are smrt, run heavier operation
-                List<BlockCache> posBlocks = mem.FindAll(delegate (BlockCache cand) { return cand.t == BT; });
-                int count = posBlocks.Count;
-                //Debug.Log("TACtical AI: RepairLerp - potental spots " + posBlocks.Count + " for block " + foundBlock);
-                for (int step2 = 0; step2 < count; step2++)
-                {
-                    BlockCache template = posBlocks.ElementAt(step2);
-                    attemptW = AttemptBlockAttachExt(tank, template, foundBlock);
-                    if (attemptW)
-                    {
-                        if (denySD)
-                        {
-                            foundBlock.damage.AbortSelfDestruct();
-                        }
-                        foundBlocks.RemoveAt(step);
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-        private static bool AttemptBlockAttachExt(Tank tank, BlockCache template, TankBlock canidate)
-        {
-            //Debug.Log("TACtical_AI: (AttemptBlockAttachExt) AI " + tank.name + ":  Trying to attach " + canidate.name + " at " + template.CachePos);
-            return Singleton.Manager<ManLooseBlocks>.inst.RequestAttachBlock(tank, canidate, template.p, template.r);
-        }
-
-        private static void AttemptBlockDetachExt(Tank tank, TankBlock toRemove)
-        {
-            ManLooseBlocks.inst.HostDetachBlock(toRemove, false, true);
-        }
-
-
-
-        public static bool IsBlockAvailInInventory(Tank tank, BlockTypes blockType, bool taking = false)
-        {
-            if (!ManSpawn.IsPlayerTeam(tank.Team))
-                return true;// Non-player Teams don't actually come with limited inventories.  strange right?
-            if (!taking)
-            {
-                if (Singleton.Manager<ManPlayer>.inst.InventoryIsUnrestricted)
-                {
-                    //no need to return to infinite stockpile
-                    return true;
-                }
-                else
-                {
-                    try
-                    {
-                        bool isMP = Singleton.Manager<ManGameMode>.inst.IsCurrentModeMultiplayer();
-                        if (isMP)
-                        {
-                            if (Singleton.Manager<NetInventory>.inst.IsAvailableToLocalPlayer(blockType))
-                            {
-                                return Singleton.Manager<NetInventory>.inst.GetQuantity(blockType) > 0;
-                            }
-                        }
-                        else
-                        {
-                            if (Singleton.Manager<SingleplayerInventory>.inst.IsAvailableToLocalPlayer(blockType))
-                            {
-                                return Singleton.Manager<SingleplayerInventory>.inst.GetQuantity(blockType) > 0;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        DebugArchitech.Log("BuildUtil: " + tank.name + ":  Tried to repair but block " + blockType.ToString() + " was not found!");
-                    }
-                }
-                return false;
-            }
-            bool isAvail = false;
-            if (Singleton.Manager<ManPlayer>.inst.InventoryIsUnrestricted)
-            {
-                isAvail = true;
-            }
-            else
-            {
-                try
-                {
-                    int availQuant;
-                    bool isMP = Singleton.Manager<ManGameMode>.inst.IsCurrentModeMultiplayer();
-                    if (isMP)
-                    {
-                        if (Singleton.Manager<NetInventory>.inst.IsAvailableToLocalPlayer(blockType))
-                        {
-                            availQuant = Singleton.Manager<NetInventory>.inst.GetQuantity(blockType);
-                            if (availQuant > 0)
-                            {
-                                availQuant--;
-                                isAvail = true;
-                                Singleton.Manager<NetInventory>.inst.SetBlockCount(blockType, availQuant);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (Singleton.Manager<SingleplayerInventory>.inst.IsAvailableToLocalPlayer(blockType))
-                        {
-                            availQuant = Singleton.Manager<SingleplayerInventory>.inst.GetQuantity(blockType);
-                            if (availQuant > 0)
-                            {
-                                availQuant--;
-                                isAvail = true;
-                                Singleton.Manager<SingleplayerInventory>.inst.SetBlockCount(blockType, availQuant);
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    DebugArchitech.Log("BuildUtil: " + tank.name + ":  Tried to repair but block " + blockType.ToString() + " was not found!");
-                }
-            }
-            return isAvail;
-        }
-
 
 
         internal enum MirrorAngle
@@ -2662,37 +2457,6 @@ namespace Architech
             NeedsPrecise,
         }
 
-        internal class BatchCache
-        {   // Save the blocks!
-            public Tank originTank;
-            public TankBlock handledBlock;
-
-            public BlockCache fromPlayer;
-            public BlockCache fromMirror;
-
-            public bool Verify()
-            {
-                return originTank && originTank.visible.isActive && originTank.blockman.blockCount > 0
-                    && handledBlock && !handledBlock.IsAttached && handledBlock.CanAttach;
-            }
-        }
-
-        internal struct BlockCache
-        {   // Save the blocks!
-            public BlockTypes t;
-            public Vector3 p;
-            public OrthoRotation r;
-
-            /// <summary>
-            /// get rid of floating point errors
-            /// </summary>
-            public void TidyUp()
-            {
-                p.x = Mathf.RoundToInt(p.x);
-                p.y = Mathf.RoundToInt(p.y);
-                p.z = Mathf.RoundToInt(p.z);
-            }
-        }
     }
 
 
