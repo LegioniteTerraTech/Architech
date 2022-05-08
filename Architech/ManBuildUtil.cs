@@ -2039,7 +2039,7 @@ namespace Architech
                 return toAttach;
             }
             if (ManNetwork.IsNetworked)
-                return toAttach;
+                return toAttach; 
             TankBlock root = tank.blockman.IterateBlocks().FirstOrDefault();
             tank.blockman.SetRootBlock(root);
             Vector3 initialPos = tank.rootBlockTrans.position;
