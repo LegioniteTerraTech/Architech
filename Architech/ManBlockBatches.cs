@@ -183,6 +183,15 @@ namespace Architech
                     {
                         DeInit(true);
                     }
+                    else 
+                    {
+                        var block = col.transform.root.GetComponent<TankBlock>();
+                        if (block)
+                        {
+                            if (batchAssigned.batch.Exists(delegate (BlockCache cand) { return cand.inst == block; }))
+                                ManBuildUtil.PreGrabBlock(block);
+                        }
+                    }
                 }
             }
 
@@ -227,8 +236,16 @@ namespace Architech
 
             internal void Grab(Ray toCast)
             {
+                if (ManPointer.inst.DraggingItem)
+                {
+                    DebugArchitech.Info("Could not Grab " + gameObject.name + " - We are already holding something");
+                    return;
+                }
+
+                Vector3 newCenterPos = Vector3.zero;
                 if (RaycastAll(toCast, out TankBlock best))
                 {
+                    newCenterPos = batchAssigned.GetLocalPositionOfBlock(best);
                     batchAssigned.BatchCenterOnNoGrab(best);
                 }
                 TankBlock root = batchAssigned.Root;
@@ -240,6 +257,8 @@ namespace Architech
                 if (mirrorPair)
                 {
                     DebugArchitech.Info(mirrorPair.gameObject.name + " - Grabbed(Mirror)");
+                    //TankBlock newRoot = batchAssigned.TryGetBlockFromLocalPosition(newCenterPos); // will need better maths for this
+                    //mirrorPair.batchAssigned.BatchCenterOnNoGrab(newRoot);
                     ManBuildUtil.TryPushToMirrorBatch(mirrorPair.batchAssigned);
                     mirrorPair.DeInit(false);
                 }
@@ -248,6 +267,12 @@ namespace Architech
 
             internal void GrabCopy(Ray toCast)
             {
+                if (ManPointer.inst.DraggingItem)
+                {
+                    DebugArchitech.Info("Could not GrabCopy " + gameObject.name + " - We are already holding something");
+                    return;
+                }
+
                 if (RaycastAll(toCast, out TankBlock best))
                 {
                     batchAssigned.BatchCenterOnNoGrab(best);

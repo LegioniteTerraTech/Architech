@@ -118,8 +118,7 @@ namespace Architech
                     case GameCursor.CursorState.HoldingGrabbable:
                         if (ManBuildUtil.IsGrabbingTechsActive)
                         {   // Display Tech Grabbed
-                            if (ManPointer.inst.DraggingItem?.block?.tank 
-                                && ManPointer.inst.DraggingItem.block.tank != Singleton.playerTank)
+                            if (ManBuildUtil.BusyGrabbingTechs)
                                 __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[1]);
                         }
                         else if (ManBuildUtil.IsBatchActive && ManBuildUtil.inst.IsHoldingBatch)

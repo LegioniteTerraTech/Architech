@@ -782,8 +782,13 @@ namespace Architech
                     if (currentTank)
                     {
                         lastFramePlacementInvalid = DoesBlockConflictWithMain(toMirror) || DoesBlockConflictWithTech();
-                        if (lastFramePlacementInvalid)
-                            OH.SetHighlightType(ManPointer.HighlightVariation.Invalid);
+                        if (ManTechBuilder.inst.IsBlockHeldInPosition(toMirror))
+                        {
+                            if (lastFramePlacementInvalid)
+                                OH.SetHighlightType(ManPointer.HighlightVariation.Invalid);
+                            else
+                                OH.SetHighlightType(ManPointer.HighlightVariation.Attaching);
+                        }
                         else
                             OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
                     }
@@ -1262,13 +1267,16 @@ namespace Architech
         }
 
 
-        public static Quaternion MirroredRot(TankBlock block, Quaternion otherRot, bool mirrorRot)
+        public static Quaternion MirroredRot(TankBlock block, Quaternion otherRot, bool sameBlock)
         {
             Vector3 forward;
             Vector3 up;
 
             MirrorAngle angle = cachedMirrorAngle;
-            if (!mirrorRot)
+            // If we already have a mirrored block that is not the same, chances are that block is already
+            //   properly mirrored.  We can skip calculating the starting rotation of the mirror block 
+            //   and just mirror it directly.
+            if (!sameBlock)
             {
                 forward = otherRot * Vector3.forward;
                 forward.x *= -1;
@@ -1277,11 +1285,14 @@ namespace Architech
                 return Quaternion.LookRotation(forward, up);
             }
 
+            // If we have the rotation cached for the type (when holding said block), we can skip recalculating
+            //   the mirror block's starting rotation.
             if (block.BlockType != pairType)
             {
                 GetMirrorNormal(block, ref angle);
             }
 
+            // We mirror the other block's rotations from it's starting rotation in relation to the X-Axis:
             Quaternion offsetMirrorRot = Quaternion.identity;
             offsetMirrorRot.w = otherRot.w;
             offsetMirrorRot.x = otherRot.x;
@@ -1289,7 +1300,7 @@ namespace Architech
             offsetMirrorRot.z = -otherRot.z;
 
             Quaternion offsetLook;
-
+            // Let's get the starting rotation for the mirrored block and store it in offsetLook:
             switch (angle)
             {
                 case MirrorAngle.X:
@@ -1333,22 +1344,22 @@ namespace Architech
                     break;
             }
 
+            // Apply the offset rotation to get the mirror at the starting block rotation
             forward = offsetLook * Vector3.forward;
-            forward = offsetMirrorRot * forward;
-
             up = offsetLook * Vector3.up;
-            up = offsetMirrorRot * up;
 
+            // Then we apply the mirrored rotation the player has set their held block to
+            forward = offsetMirrorRot * forward;
+            up = offsetMirrorRot * up;
 
             return Quaternion.LookRotation(forward, up);
         }
 
         public static void GetMirrorNormal(TankBlock block, ref MirrorAngle angle)
         {
-
-            if (block.BlockType == BlockTypes.HE_Missile_Pod_28_111)
+            if (HandleEdgeCases(block, out MirrorAngle angleFix))
             {
-                angle = MirrorAngle.SeekerMissile;
+                angle = angleFix;
                 return;
             }
 
@@ -1415,81 +1426,29 @@ namespace Architech
         {
 
             int countX = CountOffCenter(posCentered, Vector3.forward);
-            if (!doComplex && countX == 0)
-            {
-                angle = MirrorAngle.X;
-                return true;
-            }
 
             int countZ = CountOffCenter(posCentered, Vector3.right);
-            if (!doComplex && countZ == 0)
-            {
-                angle = MirrorAngle.Z;
-                return true;
-            }
 
             int countY = CountOffCenterY(posCentered);
-            if (!doComplex && countY == 0)
-            {
-                angle = MirrorAngle.Y;
-                return true;
-            }
 
             Vector3 angle45 = new Vector3(1, 0, 1).normalized;
             int count90 = CountOffCenter(posCentered, angle45);
-            if (!doComplex && count90 == 0)
-            {
-                angle = MirrorAngle.YCorner;
-                return true;
-            }
 
             Vector3 angleInv45 = new Vector3(-1, 0, 1).normalized;
             int count90Inv = CountOffCenter(posCentered, angleInv45);
-            if (!doComplex && count90Inv == 0)
-            {
-                angle = MirrorAngle.YCornerInv;
-                return true;
-            }
 
 
             Vector3 angle45Z = new Vector3(1, 1, 0).normalized; // upper right
             int count90Z = CountOffCenterZ(posCentered, angle45Z);
-            if (!doComplex && count90Z == 0)
-            {
-                angle = MirrorAngle.ZCorner;
-                return true;
-            }
 
             Vector3 angle45InvZ = new Vector3(-1, 1, 0).normalized; // upper left
             int count90ZInv = CountOffCenterZ(posCentered, angle45InvZ);
-            if (!doComplex && count90ZInv == 0)
-            {
-                angle = MirrorAngle.ZCornerInv;
-                return true;
-            }
 
             Vector3 angle45X = new Vector3(0, 1, 1).normalized; // upper right
             int count90X = CountOffCenterX(posCentered, angle45X);
-            if (!doComplex && count90X == 0)
-            {
-                angle = MirrorAngle.XCorner;
-                return true;
-            }
 
             Vector3 angle45InvX = new Vector3(0, 1, -1).normalized; // upper left
             int count90XInv = CountOffCenterX(posCentered, angle45InvX);
-            if (!doComplex && count90XInv == 0)
-            {
-                angle = MirrorAngle.XCornerInv;
-                return true;
-            }
-
-            if (!doComplex)
-            {
-                DebugArchitech.Log("Block is complex mirror!");
-                angle = MirrorAngle.NeedsPrecise;
-                return true;
-            }
 
             List<KeyValuePair<int, MirrorAngle>> comp = new List<KeyValuePair<int, MirrorAngle>> {
                 new KeyValuePair<int, MirrorAngle>(countX, MirrorAngle.X),
@@ -1514,6 +1473,12 @@ namespace Architech
             angle = comp.First().Value;
             if (Mathf.Abs(comp.First().Key) > 2)
             {
+                if (!doComplex)
+                {
+                    DebugArchitech.Log("Block is complex mirror!");
+                    angle = MirrorAngle.NeedsPrecise;
+                    return true;
+                }
                 DebugArchitech.Log("Block is vague");
                 return false;
             }
@@ -2239,11 +2204,17 @@ namespace Architech
             if (ManNetwork.IsNetworked || tank == null || tank.blockman.blockCount == 0
                 || tank.Team != ManPlayer.inst.PlayerTeam || !CanHighlight)
                 return;
-            List<BlockCache> mem = TechToForwardsCache(tank, out TankBlock rBlock);
+            TankBlock root = tank.blockman.GetRootBlock();
+            Vector3 pos = tank.visible.centrePosition;
+            Quaternion rot = tank.trans.rotation;
+            List<BlockCache> mem = TechToForwardsCache(tank, out _);
             List<TankBlock> blocks = DitchAllBlocks(tank, true);
             TechUtils.TurboconstructExt(tank, mem, blocks, false);
-            tank.blockman.SetRootBlock(rBlock);
-            HighlightBlock(tank.blockman.GetRootBlock());
+            tank.blockman.SetRootBlock(root);
+            root = tank.blockman.GetRootBlock();
+            tank.blockman.SetRootBlock(root);
+            tank.visible.Teleport(pos, rot, false, false);
+            HighlightBlock(root);
         }
 
 
@@ -2439,6 +2410,21 @@ namespace Architech
         }
 
 
+        public static bool HandleEdgeCases(TankBlock block, out MirrorAngle angle)
+        {
+            switch (block.BlockType)
+            {
+                case BlockTypes.HE_Missile_Pod_28_111:
+                    angle = MirrorAngle.SeekerMissile;
+                    return true;
+                case BlockTypes.VENLaserTurret_111:
+                    angle = MirrorAngle.X;
+                    return true;
+                default:
+                    angle = MirrorAngle.None;
+                    return false;
+            }
+        }
 
 
         internal enum MirrorAngle

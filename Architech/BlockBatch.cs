@@ -180,6 +180,28 @@ namespace Architech
             return main;
         }
 
+        public Vector3 GetLocalPositionOfBlock(TankBlock block)
+        {
+            if (block == root)
+                return Vector3.zero;
+            foreach (var item in batch)
+            {
+                if (item.inst == block)
+                    return item.p;
+            }
+            return Vector3.zero;
+        }
+        public TankBlock TryGetBlockFromLocalPosition(Vector3 localPos)
+        {
+            if (localPos == Vector3.zero)
+                return root;
+            foreach (var item in batch)
+            {
+                if (item.p.Approximately(localPos, 0.45f))
+                    return item.inst;
+            }
+            return null;
+        }
         public Bounds GetBounds()
         {
             if (!root)
