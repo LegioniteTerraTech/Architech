@@ -79,7 +79,7 @@ namespace Architech
 
         private static void TryAddNewCursor(List<MousePointer.CursorData> lodInst, string DLLDirectory, string name, int lodLevel, Vector2 center, int cacheIndex)
         {
-            DebugArchitech.Log("BuildUtil: AddNewCursors - " + DLLDirectory + " for " + name + " " + lodLevel + " " + center);
+            DebugArchitech.LogDevOnly("BuildUtil: AddNewCursors - " + DLLDirectory + " for " + name + " " + lodLevel + " " + center);
             try
             {
                 List<FileInfo> FI = new DirectoryInfo(DLLDirectory).GetFiles().ToList();
@@ -104,7 +104,7 @@ namespace Architech
                 };
                 lodInst.Add(CD);
                 CursorIndexCache[cacheIndex] = lodInst.IndexOf(CD);
-                DebugArchitech.Log(name + " center: " + CD.m_Hotspot.x + "|" + CD.m_Hotspot.y);
+                DebugArchitech.Info(name + " center: " + CD.m_Hotspot.x + "|" + CD.m_Hotspot.y);
             }
             catch { DebugArchitech.Assert(true, "BuildUtil: AddNewCursors - failed to fetch cursor texture " + name); }
         }
