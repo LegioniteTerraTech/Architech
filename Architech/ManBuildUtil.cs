@@ -395,6 +395,7 @@ namespace Architech
             {
                 if (ManPointer.inst.targetVisible?.block)
                 {
+                    // Get the mirror of the hovered over block
                     TankBlock PlayerHeld = ManPointer.inst.targetVisible.block;
                     TankBlock Mirror = MirroredFetch(PlayerHeld);
                     if (Mirror)
@@ -408,10 +409,30 @@ namespace Architech
                             else
                                 OH.Highlight(Mirror.visible);
 
+                            lastType = Mirror.BlockType;
+                            pairType = GetPair(Mirror);
+                            if (pairType == lastType)
+                                GetMirrorNormal(Mirror, ref cachedMirrorAngle);
+                            else
+                            {
+                                DebugArchitech.Log("Block " + Mirror.name + " is x-axis mirror (has a separate mirror block)");
+                                cachedMirrorAngle = MirrorAngle.X;
+                            }
                             lastHovered = Mirror;
                         }
                         if (lastHovered)
                         {
+                            lastType = lastHovered.BlockType;
+                            if (cachedMirrorAngle == MirrorAngle.None)
+                            {
+                                if (pairType == lastType)
+                                    GetMirrorNormal(lastHovered, ref cachedMirrorAngle);
+                                else
+                                {
+                                    DebugArchitech.Log("Block " + MirrorHeld.name + " is x-axis mirror (has a separate mirror block)");
+                                    cachedMirrorAngle = MirrorAngle.X;
+                                }
+                            }
                             if (IsPaintSkinsActive)
                             {
                                 OH.HideHighlight();
@@ -424,8 +445,6 @@ namespace Architech
                                     ManCustomSkins.inst.TryPaintBlock(lastHovered);
                                 }
                             }
-                            else
-                                OH.Highlight(Mirror.visible);
                         }
                     }
                     else
@@ -713,109 +732,117 @@ namespace Architech
         }
         public void UpdateMirrorHeldBlock(TankBlock toMirror, bool show)
         {
-            ResetLastHovered();
-            if (show)
+            try
             {
-                if (MirrorHeld)
+                ResetLastHovered();
+                if (show)
                 {
-                    if (MirrorHeld.BlockType != pairType)
+                    if (MirrorHeld)
+                    {
+                        if (MirrorHeld.BlockType != pairType)
+                        {
+                            if (PaintBlocks)
+                            {
+                                PostGrabBlock(MirrorHeld);
+                                OH.HideHighlight();
+                                DropMirror();
+                                ReleaseAndTryMaintainBatches();
+
+                                if (currentTank && TechUtils.IsBlockAvailInInventory(currentTank, pairType))
+                                {
+                                    TankBlock newFake = ManLooseBlocks.inst.HostSpawnBlock(pairType, currentTank.boundsCentreWorld + (Vector3.up * 128), Quaternion.identity);
+
+                                    MirrorHeld = newFake;
+                                    PreGrabBlock(MirrorHeld);
+                                    InventoryBlock = true;
+                                }
+                            }
+                            cachedMirrorAngle = MirrorAngle.None;
+                        }
+                        if (MirrorHeld)
+                            OH.Highlight(MirrorHeld.visible);
+                    }
+                    else
                     {
                         if (PaintBlocks)
                         {
-                            PostGrabBlock(MirrorHeld);
-                            OH.HideHighlight();
-                            DropMirror();
-                            ReleaseAndTryMaintainBatches();
-
                             if (currentTank && TechUtils.IsBlockAvailInInventory(currentTank, pairType))
                             {
                                 TankBlock newFake = ManLooseBlocks.inst.HostSpawnBlock(pairType, currentTank.boundsCentreWorld + (Vector3.up * 128), Quaternion.identity);
-
                                 MirrorHeld = newFake;
                                 PreGrabBlock(MirrorHeld);
+                                cachedMirrorAngle = MirrorAngle.None;
+                                OH.Highlight(MirrorHeld.visible);
                                 InventoryBlock = true;
                             }
                         }
-                        cachedMirrorAngle = MirrorAngle.None;
                     }
+
                     if (MirrorHeld)
-                        OH.Highlight(MirrorHeld.visible);
-                }
-                else
-                {
-                    if (PaintBlocks)
                     {
-                        if (currentTank && TechUtils.IsBlockAvailInInventory(currentTank, pairType))
+                        if (InventoryBlock)
                         {
-                            TankBlock newFake = ManLooseBlocks.inst.HostSpawnBlock(pairType, currentTank.boundsCentreWorld + (Vector3.up * 128), Quaternion.identity);
-                            MirrorHeld = newFake;
-                            PreGrabBlock(MirrorHeld);
-                            cachedMirrorAngle = MirrorAngle.None;
-                            OH.Highlight(MirrorHeld.visible);
-                            InventoryBlock = true;
+                            byte skinInd = toMirror.GetSkinIndex();
+                            if (MirrorHeld.GetSkinIndex() != skinInd)
+                            {
+                                if (ManCustomSkins.inst.CanUseSkin(ManSpawn.inst.GetCorporation(toMirror.BlockType), skinInd))
+                                    MirrorHeld.SetSkinIndex(skinInd);
+                            }
                         }
-                    }
-                }
 
-                if (MirrorHeld)
-                {
-                    if (InventoryBlock)
-                    {
-                        byte skinInd = toMirror.GetSkinIndex();
-                        if (MirrorHeld.GetSkinIndex() != skinInd)
+                        if (cachedMirrorAngle == MirrorAngle.None)
                         {
-                            if (ManCustomSkins.inst.CanUseSkin(ManSpawn.inst.GetCorporation(toMirror.BlockType), skinInd))
-                                MirrorHeld.SetSkinIndex(skinInd);
-                        }
-                    }
-
-                    if (cachedMirrorAngle == MirrorAngle.None)
-                    {
-                        if (pairType == lastType)
-                            GetMirrorNormal(MirrorHeld, ref cachedMirrorAngle);
-                        else
-                        {
-                            DebugArchitech.Log("Block " + MirrorHeld.name + " is x-axis mirror (has a separate mirror block)");
-                            cachedMirrorAngle = MirrorAngle.X;
-                        }
-                    }
-                    if (currentTank)
-                    {
-                        lastFramePlacementInvalid = DoesBlockConflictWithMain(toMirror) || DoesBlockConflictWithTech();
-                        if (ManTechBuilder.inst.IsBlockHeldInPosition(toMirror))
-                        {
-                            if (lastFramePlacementInvalid)
-                                OH.SetHighlightType(ManPointer.HighlightVariation.Invalid);
+                            if (pairType == lastType)
+                                GetMirrorNormal(MirrorHeld, ref cachedMirrorAngle);
                             else
-                                OH.SetHighlightType(ManPointer.HighlightVariation.Attaching);
+                            {
+                                DebugArchitech.Log("Block " + MirrorHeld.name + " is x-axis mirror (has a separate mirror block)");
+                                cachedMirrorAngle = MirrorAngle.X;
+                            }
+                        }
+                        if (currentTank)
+                        {
+                            lastFramePlacementInvalid = DoesBlockConflictWithMain(toMirror) || DoesBlockConflictWithTech();
+                            if (ManTechBuilder.inst.IsBlockHeldInPosition(toMirror))
+                            {
+                                if (lastFramePlacementInvalid)
+                                    OH.SetHighlightType(ManPointer.HighlightVariation.Invalid);
+                                else
+                                    OH.SetHighlightType(ManPointer.HighlightVariation.Attaching);
+                            }
+                            else
+                                OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
                         }
                         else
                             OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
+
+                        MirroredSpace(toMirror, ref MirrorHeld);
                     }
                     else
-                        OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
-
-                    MirroredSpace(toMirror, ref MirrorHeld);
+                    {
+                        cachedMirrorAngle = MirrorAngle.None;
+                        CarryBatchesNonMirror(toMirror);
+                    }
                 }
                 else
                 {
-                    cachedMirrorAngle = MirrorAngle.None;
-                    CarryBatchesNonMirror(toMirror);
+                    if (MirrorHeld)
+                    {
+                        lastType = BlockTypes.GSOAIController_111;
+                        pairType = BlockTypes.GSOAIController_111;
+                        PostGrabBlock(MirrorHeld);
+                        OH.HideHighlight();
+                        DropMirror();
+                        cachedMirrorAngle = MirrorAngle.None;
+                    }
+                    ReleaseAndTryMaintainBatches();
                 }
             }
-            else
+            catch 
             {
-                if (MirrorHeld)
-                {
-                    PostGrabBlock(MirrorHeld);
-                    OH.HideHighlight();
-                    DropMirror();
-                }
-                lastType = BlockTypes.GSOAIController_111;
-                pairType = BlockTypes.GSOAIController_111;
-                cachedMirrorAngle = MirrorAngle.None;
-                ReleaseAndTryMaintainBatches();
-            }
+                DebugArchitech.Assert(MirrorHeld, "Architech: Game has stolen the locked MirrorHeld block somehow. Discarding...");
+                MirrorHeld = null; 
+            } // it was hyjacked somehow
         }
 
 
@@ -882,10 +909,10 @@ namespace Architech
         }
         private static float SnapToMirrorDim(float toSnap)
         {
-            float extra = toSnap % 1f;
+            float extra = Mathf.Abs(toSnap) % 1f;
             if (extra < 0.25f)
                 extra = 0;
-            else if (extra < 0.75f)
+            else if (extra <= 0.75f)
                 extra = 0.5f;
             else
                 extra = 1;
@@ -1369,7 +1396,7 @@ namespace Architech
             {
                 posCentered[step] = block.attachPoints[step] - blockCenter;
             }
-            bool smolBlock = block.filledCells.Length == 1;
+            bool smolBlock = block.filledCells.Length < 3;
 
             if (!smolBlock)
                 GetMirrorSuggestion(posCentered, out angle);
