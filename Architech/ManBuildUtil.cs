@@ -29,14 +29,15 @@ namespace Architech
         private static ObjectHighlight OH;
         internal static Tank currentTank;
 
+        internal static bool IsThisSuppressed => Input.GetKey(KickStart.SuppressControl);
         internal static bool IsPaintSkinsActive => ManPointer.inst.BuildMode == ManPointer.BuildingMode.PaintSkin;
         internal static bool IsPaintingSkin => IsPaintSkinsActive && Input.GetMouseButton(0);
-        internal static bool IsGrabbingTechsActive => Input.GetKey(KeyCode.Backspace);
+        internal static bool IsGrabbingTechsActive => Input.GetKey(KickStart.GrabTechs);
         internal static bool IsHoveringGrabbableTech => ManPointer.inst.targetVisible?.block?.tank ? ManPointer.inst.targetVisible.block.tank != Singleton.playerTank : false;
 
         internal static bool IsBatchActive = false;
-        internal static bool ToggleBatchMode => Input.GetKey(KeyCode.RightShift);
-        internal static bool ToggleMirrorMode => Input.GetKey(KeyCode.CapsLock);
+        internal static bool ToggleBatchMode => Input.GetKey(KickStart.ToggleBatch);
+        internal static bool ToggleMirrorMode => Input.GetKey(KickStart.ToggleMirrorMode);
         internal static bool IsHoveringMirrored => lastHovered;
         internal static bool IsHoldingMirrored => MirrorHeld;
         internal bool IsHoldingBatch => PointerBatchCache || MirrorBatchCache;
@@ -94,14 +95,11 @@ namespace Architech
             OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
             CursorChanger.AddNewCursors();
 
-            ManBlockBatches.inst = new GameObject("BatchUtil").AddComponent<ManBlockBatches>();
-            ManBlockBatches.inst.Subcribble(true);
         }
         public static void DeInit()
         {
             if (!inst)
                 return;
-            ManBlockBatches.inst.Subcribble(false);
             Destroy(ManBlockBatches.inst.gameObject);
             ManBlockBatches.inst = null;
 
@@ -311,6 +309,24 @@ namespace Architech
                 BusyGrabbingTechs = false;
                 return;
             }
+            else if (IsThisSuppressed)
+            {
+                OH.HideHighlight();
+                if (lastHovered)
+                {
+                    ResetLastHovered();
+                }
+                if (MirrorHeld)
+                {
+                    PostGrabBlock(MirrorHeld);
+                    DropMirror();
+                }
+                cachePointerHeld = null;
+                lastRemovedTank = null;
+                cachedMirrorAngle = MirrorAngle.None;
+                BusyGrabbingTechs = false;
+                return;
+            }
 
             ApplyDetachQueue();
             lastRemovedTank = null;
@@ -384,8 +400,8 @@ namespace Architech
 
         public void UpdateHasNoTech()
         {
-            if (ManPointer.inst.targetTank && Input.GetKey(KeyCode.Backslash))
-            {
+            if (ManPointer.inst.targetTank && Input.GetKey(KickStart.ChangeRoot))
+            {   // Root Setter
                 if (IsBatchActive)
                     RebuildTechCabForwards(ManPointer.inst.targetTank);
                 else
@@ -521,7 +537,7 @@ namespace Architech
                 return;
             }
 
-            if (Input.GetKey(KeyCode.Backslash))
+            if (Input.GetKey(KickStart.ChangeRoot))
             {
                 if (IsBatchActive)
                     RebuildTechCabForwards(currentTank);
@@ -1303,6 +1319,7 @@ namespace Architech
             // If we already have a mirrored block that is not the same, chances are that block is already
             //   properly mirrored.  We can skip calculating the starting rotation of the mirror block 
             //   and just mirror it directly.
+            //    THIS CURRENTLY DOES NOT WORK WITH MIRROR BLOCKS THAT ARE OFFSET ROTATED TO BEGIN WITH - Will fix later
             if (!sameBlock)
             {
                 forward = otherRot * Vector3.forward;
@@ -1444,6 +1461,7 @@ namespace Architech
 
         /// <summary>
         /// returns true if the answer is not vague
+        /// Needs optimization that accounts for Sphere and Box Colliders
         /// </summary>
         /// <param name="posCentered"></param>
         /// <param name="angle"></param>
@@ -1618,32 +1636,39 @@ namespace Architech
         public static BlockTypes GetPair(TankBlock TB)
         {
             BlockTypes BT = TB.BlockType;
-            switch (BT)
+            if (ModdedMirrored(TB, out BlockTypes mirror))
             {
-                // Edge-Cases
-                case BlockTypes.BF_Hover_Flipper_Small_Left_212:
-                    return BlockTypes.BF_Hover_Flipper_Small_Right_212;
-                case BlockTypes.BF_Hover_Flipper_Small_Right_212:
-                    return BlockTypes.BF_Hover_Flipper_Small_Left_212;
-                case BlockTypes.VENBlockZ1_312:
-                    return BlockTypes.VENBlockZ2_312;
-                case BlockTypes.VENBlockZ2_312:
-                    return BlockTypes.VENBlockZ1_312;
+                return mirror;
+            }
+            else
+            {
+                switch (BT)
+                {
+                    // Edge-Cases
+                    case BlockTypes.BF_Hover_Flipper_Small_Left_212:
+                        return BlockTypes.BF_Hover_Flipper_Small_Right_212;
+                    case BlockTypes.BF_Hover_Flipper_Small_Right_212:
+                        return BlockTypes.BF_Hover_Flipper_Small_Left_212;
+                    case BlockTypes.VENBlockZ1_312:
+                        return BlockTypes.VENBlockZ2_312;
+                    case BlockTypes.VENBlockZ2_312:
+                        return BlockTypes.VENBlockZ1_312;
 
-                // Normal
-                default:
-                    foreach (var item in Globals.inst.m_BlockPairsList.m_BlockPairs)
-                    {
-                        if (item.m_Block == BT)
+                    // Normal
+                    default:
+                        foreach (var item in Globals.inst.m_BlockPairsList.m_BlockPairs)
                         {
-                            return item.m_PairedBlock;
+                            if (item.m_Block == BT)
+                            {
+                                return item.m_PairedBlock;
+                            }
+                            if (item.m_PairedBlock == BT)
+                            {
+                                return item.m_Block;
+                            }
                         }
-                        if (item.m_PairedBlock == BT)
-                        {
-                            return item.m_Block;
-                        }
-                    }
-                    return BT;
+                        return BT;
+                }
             }
         }
 
@@ -2436,7 +2461,9 @@ namespace Architech
             return rot;
         }
 
-
+        /// <summary>
+        /// Gets a loadout of prefabbed 
+        /// </summary>
         public static bool HandleEdgeCases(TankBlock block, out MirrorAngle angle)
         {
             switch (block.BlockType)
@@ -2453,6 +2480,86 @@ namespace Architech
             }
         }
 
+        public static bool ModdedMirrored(TankBlock block, out BlockTypes mirror)
+        {
+            if (ManMods.inst.IsModdedBlock(block.BlockType))
+            {
+                int id = (int)block.BlockType;
+                string name = ManMods.inst.FindBlockName(id);
+                string nameFiltered;
+                string name2;
+                if (name != null)
+                {
+                    //StringLookup.GetItemName(new ItemTypeInfo(ObjectTypes.Block, id));
+                    if (name.Contains("Left"))
+                    {
+                        nameFiltered = name.Replace("Left", "");
+                        name2 = ManMods.inst.FindBlockName(id - 1);
+                        if (name2.Contains("Right") && name2.Replace("Right", "").Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id - 1);
+                            return true;
+                        }
+                        name2 = ManMods.inst.FindBlockName(id + 1);
+                        if (name2.Contains("Right") && name2.Replace("Right", "").Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id + 1);
+                            return true;
+                        }
+                    }
+                    else if (name.Contains("Right"))
+                    {
+                        nameFiltered = name.Replace("Right", "");
+                        name2 = ManMods.inst.FindBlockName(id - 1);
+                        if (name2.Contains("Left") && name2.Replace("Left", "").Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id - 1);
+                            return true;
+                        }
+                        name2 = ManMods.inst.FindBlockName(id + 1);
+                        if (name2.Contains("Left") && name2.Replace("Left", "").Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id + 1);
+                            return true;
+                        }
+                    }
+                    else if (name.EndsWith("L"))
+                    {
+                        nameFiltered = name.Substring(0, name.Length -1);
+                        name2 = ManMods.inst.FindBlockName(id - 1);
+                        if (name2.EndsWith("R") && name2.Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id - 1);
+                            return true;
+                        }
+                        name2 = ManMods.inst.FindBlockName(id + 1);
+                        if (name2.EndsWith("R") && name2.Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id + 1);
+                            return true;
+                        }
+                    }
+                    else if (name.EndsWith("R"))
+                    {
+                        nameFiltered = name.Substring(0, name.Length - 1);
+                        name2 = ManMods.inst.FindBlockName(id - 1);
+                        if (name2.EndsWith("L") && name2.Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id - 1);
+                            return true;
+                        }
+                        name2 = ManMods.inst.FindBlockName(id + 1);
+                        if (name2.EndsWith("L") && name2.Contains(nameFiltered))
+                        {
+                            mirror = (BlockTypes)(id + 1);
+                            return true;
+                        }
+                    }
+                }
+            }
+            mirror = BlockTypes.GSOCockpit_111;
+            return false;
+        }
 
         internal enum MirrorAngle
         {

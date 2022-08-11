@@ -53,116 +53,119 @@ namespace Architech
                 if (!ManBuildUtil.inst)
                     return;
                 //int enumC = Enum.GetValues(typeof(GameCursor.CursorState)).Length - 1;
-                switch (__result)
+                if (!ManBuildUtil.IsThisSuppressed)
                 {
-                    case GameCursor.CursorState.Painting:
-                        if (ManBuildUtil.IsGrabbingTechsActive)
-                        {
-                            if (ManBuildUtil.IsHoveringGrabbableTech)
-                            {   // Display tech grab
-                                __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[0];
-                                return;
+                    switch (__result)
+                    {
+                        case GameCursor.CursorState.Painting:
+                            if (ManBuildUtil.IsGrabbingTechsActive)
+                            {
+                                if (ManBuildUtil.IsHoveringGrabbableTech)
+                                {   // Display tech grab
+                                    __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[0];
+                                    return;
+                                }
                             }
-                        }
-                        if (ManBuildUtil.IsMirroring)
-                        {
-                            if (ManBuildUtil.IsHoldingMirrored && !ManBuildUtil.lastFramePlacementInvalid)
-                            {   // Display Mirror grab
-                                __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[2];
-                            }
-                        }
-                        break;
-
-                    case GameCursor.CursorState.OverGrabbable:
-                        if (ManBuildUtil.IsGrabbingTechsActive)
-                        {
-                            if (ManBuildUtil.IsHoveringGrabbableTech)
-                            {   // Display tech grab
-                                __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[0]);
-                                return;
-                            }
-                        }
-                        if (ManBuildUtil.IsBatchActive)
-                        {
                             if (ManBuildUtil.IsMirroring)
                             {
-                                if (ManPointer.inst.targetVisible?.block && ManPointer.inst.targetVisible.block.tank)
-                                {   // Display Batch Grab + Mirror
-                                    if (ManBuildUtil.IsHoveringMirrored)
-                                    {
-                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[12]);
+                                if (ManBuildUtil.IsHoldingMirrored && !ManBuildUtil.lastFramePlacementInvalid)
+                                {   // Display Mirror grab
+                                    __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[2];
+                                }
+                            }
+                            break;
+
+                        case GameCursor.CursorState.OverGrabbable:
+                            if (ManBuildUtil.IsGrabbingTechsActive)
+                            {
+                                if (ManBuildUtil.IsHoveringGrabbableTech)
+                                {   // Display tech grab
+                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[0]);
+                                    return;
+                                }
+                            }
+                            if (ManBuildUtil.IsBatchActive)
+                            {
+                                if (ManBuildUtil.IsMirroring)
+                                {
+                                    if (ManPointer.inst.targetVisible?.block && ManPointer.inst.targetVisible.block.tank)
+                                    {   // Display Batch Grab + Mirror
+                                        if (ManBuildUtil.IsHoveringMirrored)
+                                        {
+                                            __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[12]);
+                                        }
+                                        else
+                                        {   // Display batch grab
+                                            __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[11]);
+                                        }
                                     }
-                                    else
+                                }
+                                else
+                                {
+                                    if (ManPointer.inst.targetVisible?.block && ManPointer.inst.targetVisible.block.tank)
                                     {   // Display batch grab
                                         __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[11]);
                                     }
                                 }
                             }
-                            else
+                            else if (ManBuildUtil.IsMirroring)
                             {
-                                if (ManPointer.inst.targetVisible?.block && ManPointer.inst.targetVisible.block.tank)
-                                {   // Display batch grab
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[11]);
+                                if (ManBuildUtil.IsHoveringMirrored)
+                                {   // Display Mirror grab
+                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[10]);
                                 }
                             }
-                        }
-                        else if (ManBuildUtil.IsMirroring)
-                        {
-                            if (ManBuildUtil.IsHoveringMirrored)
-                            {   // Display Mirror grab
-                                __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[10]);
-                            }
-                        }
-                        break;
+                            break;
 
-                    case GameCursor.CursorState.HoldingGrabbable:
-                        if (ManBuildUtil.IsGrabbingTechsActive)
-                        {   // Display Tech Grabbed
-                            if (ManBuildUtil.BusyGrabbingTechs)
-                                __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[1]);
-                        }
-                        else if (ManBuildUtil.IsBatchActive && ManBuildUtil.inst.IsHoldingBatch)
-                        {
-                            if (ManBuildUtil.IsMirroring)
+                        case GameCursor.CursorState.HoldingGrabbable:
+                            if (ManBuildUtil.IsGrabbingTechsActive)
+                            {   // Display Tech Grabbed
+                                if (ManBuildUtil.BusyGrabbingTechs)
+                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[1]);
+                            }
+                            else if (ManBuildUtil.IsBatchActive && ManBuildUtil.inst.IsHoldingBatch)
                             {
-                                if (ManBuildUtil.IsHoldingMirrored || ManBuildUtil.IsHoveringMirrored)
-                                {   // Display Batch Grabbed + Mirror 
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[7]);
+                                if (ManBuildUtil.IsMirroring)
+                                {
+                                    if (ManBuildUtil.IsHoldingMirrored || ManBuildUtil.IsHoveringMirrored)
+                                    {   // Display Batch Grabbed + Mirror 
+                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[7]);
+                                    }
+                                    else
+                                    {  // Display batch grabbed
+                                        __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[5];
+                                    }
                                 }
                                 else
                                 {  // Display batch grabbed
                                     __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[5];
                                 }
                             }
-                            else
-                            {  // Display batch grabbed
-                                __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[5];
-                            }
-                        }
-                        else if (ManBuildUtil.IsMirroring)
-                        {
-                            if (ManBuildUtil.IsHoldingMirrored || ManBuildUtil.IsHoveringMirrored)
-                            {   // Display Mirror grabbed 
-                                __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[3]);
-                            }
-                        }
-                        break;
-
-                    //case GameCursor.CursorState.SkinPainting:
-                    //    break;
-
-                    case GameCursor.CursorState.SkinPaintingOverPaintable:
-                        if (ManBuildUtil.IsMirroring)
-                        { // Display mirror painting
-                            if (ManBuildUtil.IsHoveringMirrored)
+                            else if (ManBuildUtil.IsMirroring)
                             {
-                                if (ManBuildUtil.IsPaintingSkin)
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[8]);
-                                else
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[9]);
+                                if (ManBuildUtil.IsHoldingMirrored || ManBuildUtil.IsHoveringMirrored)
+                                {   // Display Mirror grabbed 
+                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[3]);
+                                }
                             }
-                        }
-                        break;
+                            break;
+
+                        //case GameCursor.CursorState.SkinPainting:
+                        //    break;
+
+                        case GameCursor.CursorState.SkinPaintingOverPaintable:
+                            if (ManBuildUtil.IsMirroring)
+                            { // Display mirror painting
+                                if (ManBuildUtil.IsHoveringMirrored)
+                                {
+                                    if (ManBuildUtil.IsPaintingSkin)
+                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[8]);
+                                    else
+                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[9]);
+                                }
+                            }
+                            break;
+                    }
                 }
             }
         }

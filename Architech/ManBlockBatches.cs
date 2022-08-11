@@ -29,18 +29,25 @@ namespace Architech
                 }
             }
         }
-        internal void Subcribble(bool yes)
+        internal static void Subcribble(bool yes)
         {
             if (yes)
             {
-                ManPointer.inst.MouseEvent.Subscribe(TryGetStasisBatch);
-                ManGameMode.inst.ModeCleanUpEvent.Subscribe(BeforeWorldReset);
+                if (inst)
+                    return;
+                inst = new GameObject("BatchUtil").AddComponent<ManBlockBatches>();
+                ManPointer.inst.MouseEvent.Subscribe(inst.TryGetStasisBatch);
+                ManGameMode.inst.ModeCleanUpEvent.Subscribe(inst.BeforeWorldReset);
             }
             else
             {
-                BeforeWorldReset(null);
-                ManGameMode.inst.ModeCleanUpEvent.Unsubscribe(BeforeWorldReset);
-                ManPointer.inst.MouseEvent.Unsubscribe(TryGetStasisBatch);
+                if (!inst)
+                    return;
+                inst.BeforeWorldReset(null);
+                ManGameMode.inst.ModeCleanUpEvent.Unsubscribe(inst.BeforeWorldReset);
+                ManPointer.inst.MouseEvent.Unsubscribe(inst.TryGetStasisBatch);
+                Destroy(inst);
+                inst = null;
             }
         }
         internal static VagueBounds MakeNewVagueBounds(BlockBatch BB, bool applyForce, VagueBounds BBMirror)

@@ -92,6 +92,14 @@
       <Private>False</Private>
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\workshop\content\285920\2571814511\0Harmony.dll</HintPath>
     </Reference>
+    <Reference Include="0Nuterra.NativeOptions">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\workshop\content\285920\2685130411\0Nuterra.NativeOptions.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="ConfigHelper">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\workshop\content\285920\2758915184\ConfigHelper.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)'=='Release'OR'$(Configuration)'=='Debug'">
     <!--> zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz </!-->
@@ -101,6 +109,14 @@
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\TerraTech\TerraTechWin64_Data\Managed\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="0Nuterra.NativeOptions">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\TerraTech\QMods\0Nuterra.NativeOptions\0Nuterra.NativeOptions.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="AcModHelper.Config">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\TerraTech\QMods\ModHelper.Config\AcModHelper.Config.dll</HintPath>
+      <Private>False</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>

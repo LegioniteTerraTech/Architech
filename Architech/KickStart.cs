@@ -5,12 +5,30 @@ using System.Reflection;
 using UnityEngine;
 using HarmonyLib;
 
+#if !STEAM
+using ModHelper.Config;
+#else
+using ModHelper;
+#endif
+using Nuterra.NativeOptions;
+
 namespace Architech
 {
     public class KickStart
     {
         internal const string ModName = "Architech";
 
+        public static KeyCode SuppressControl = KeyCode.LeftControl;
+        public static KeyCode ChangeRoot = KeyCode.Backslash;
+        public static KeyCode GrabTechs = KeyCode.Backspace;
+        public static KeyCode ToggleBatch = KeyCode.LeftShift;
+        public static KeyCode ToggleMirrorMode = KeyCode.CapsLock;
+
+        public static int savSuppression = (int)SuppressControl;
+        public static int savChangeRoot = (int)ChangeRoot;
+        public static int savGrabTechs = (int)GrabTechs;
+        public static int savToggleBatch = (int)ToggleBatch;
+        public static int savToggleMirrorMode = (int)ToggleMirrorMode;
 
         public static bool IsIngame { get { return !ManPauseGame.inst.IsPaused && !ManPointer.inst.IsInteractionBlocked; } }
 
@@ -28,6 +46,7 @@ namespace Architech
         static Harmony harmonyInstance;
         //private static bool patched = false;
 #if STEAM
+        // OFFICIAL
         public static void OfficialEarlyInit()
         {
             //Where the fun begins
@@ -76,6 +95,7 @@ namespace Architech
             }
             MirrorManager.Init();
             ManBuildUtil.Init();
+            ManBlockBatches.Subcribble(true);
         }
         public static void DeInitALL()
         {
@@ -94,12 +114,13 @@ namespace Architech
                     DebugArchitech.Log(e);
                 }
             }
+            ManBlockBatches.Subcribble(false);
             ManBuildUtil.DeInit();
             MirrorManager.DeInit();
         }
 
-        // UNOFFICIAL
 #else
+        // UNOFFICIAL
         public static void Main()
         {
             //Where the fun begins
@@ -115,13 +136,80 @@ namespace Architech
                 Debug.Log("Architech: Error on patch");
                 Debug.Log(e);
             }
+            KickStartOptions.PushExtModOptionsHandling();
             ManBuildUtil.Init();
         }
         public static void DelayedInitAll()
         {
+            ManBlockBatches.Subcribble(true);
             MirrorManager.Init();
         }
 #endif
+    }
+
+    public class KickStartOptions
+    {
+        public static OptionKey hold;
+        public static OptionKey mirror;
+        public static OptionKey batch;
+        public static OptionKey root;
+        public static OptionKey grabTechs;
+
+        private static bool launched = false;
+
+        internal static void PushExtModOptionsHandling()
+        {
+            if (launched)
+                return;
+            launched = true;
+            ModConfig thisModConfig = new ModConfig();
+            thisModConfig.BindConfig<KickStart>(null, "savSuppression");
+            thisModConfig.BindConfig<KickStart>(null, "savChangeRoot");
+            thisModConfig.BindConfig<KickStart>(null, "savGrabTechs");
+            thisModConfig.BindConfig<KickStart>(null, "savToggleBatch");
+            thisModConfig.BindConfig<KickStart>(null, "savToggleMirrorMode");
+
+            KickStart.SuppressControl = (KeyCode)KickStart.savSuppression;
+            KickStart.ToggleMirrorMode = (KeyCode)KickStart.savToggleMirrorMode;
+            KickStart.ToggleBatch = (KeyCode)KickStart.savToggleBatch;
+            KickStart.ChangeRoot = (KeyCode)KickStart.savChangeRoot;
+            KickStart.GrabTechs = (KeyCode)KickStart.savGrabTechs;
+
+            var TACAI = KickStart.ModName + " - Hotkey Settings";
+            hold = new OptionKey("Suppress Controls [HOLD]", TACAI, KickStart.SuppressControl);
+            hold.onValueSaved.AddListener(() =>
+            {
+                KickStart.SuppressControl = hold.SavedValue;
+                KickStart.savSuppression = (int)KickStart.SuppressControl;
+            });
+            mirror = new OptionKey("Mirror Mode [TOGGLE]", TACAI, KickStart.ToggleMirrorMode);
+            mirror.onValueSaved.AddListener(() =>
+            {
+                KickStart.ToggleMirrorMode = mirror.SavedValue;
+                KickStart.savToggleMirrorMode = (int)KickStart.ToggleMirrorMode;
+            });
+            batch = new OptionKey("Batch Holding [TOGGLE]", TACAI, KickStart.ToggleBatch);
+            batch.onValueSaved.AddListener(() =>
+            {
+                KickStart.ToggleBatch = batch.SavedValue;
+                KickStart.savToggleBatch = (int)KickStart.ToggleBatch;
+            });
+            root = new OptionKey("Root Setter [HOLD]", TACAI, KickStart.ChangeRoot);
+            root.onValueSaved.AddListener(() =>
+            {
+                KickStart.ChangeRoot = root.SavedValue;
+                KickStart.savChangeRoot = (int)KickStart.ChangeRoot;
+            });
+            grabTechs = new OptionKey("Grab Techs [HOLD]", TACAI, KickStart.GrabTechs);
+            grabTechs.onValueSaved.AddListener(() =>
+            {
+                KickStart.GrabTechs = grabTechs.SavedValue;
+                KickStart.savGrabTechs = (int)KickStart.GrabTechs;
+            });
+
+            NativeOptionsMod.onOptionsSaved.AddListener(() => { thisModConfig.WriteConfigJsonFile(); });
+        }
+
     }
 
 #if STEAM
