@@ -21,7 +21,7 @@ namespace Architech
         public static KeyCode SuppressControl = KeyCode.LeftControl;
         public static KeyCode ChangeRoot = KeyCode.Backslash;
         public static KeyCode GrabTechs = KeyCode.Backspace;
-        public static KeyCode ToggleBatch = KeyCode.LeftShift;
+        public static KeyCode ToggleBatch = KeyCode.RightShift;
         public static KeyCode ToggleMirrorMode = KeyCode.CapsLock;
 
         public static int savSuppression = (int)SuppressControl;

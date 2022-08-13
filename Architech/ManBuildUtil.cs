@@ -100,8 +100,6 @@ namespace Architech
         {
             if (!inst)
                 return;
-            Destroy(ManBlockBatches.inst.gameObject);
-            ManBlockBatches.inst = null;
 
             Destroy(OH.gameObject);
             OH = null;
