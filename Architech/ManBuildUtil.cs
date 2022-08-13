@@ -1518,11 +1518,11 @@ namespace Architech
             {
                 if (!doComplex)
                 {
-                    DebugArchitech.Log("Block is complex mirror!");
+                    DebugArchitech.Info("Block is complex mirror!");
                     angle = MirrorAngle.NeedsPrecise;
                     return true;
                 }
-                DebugArchitech.Log("Block is vague");
+                DebugArchitech.Info("Block is vague");
                 return false;
             }
             return true;
