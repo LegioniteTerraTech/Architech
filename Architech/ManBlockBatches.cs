@@ -25,8 +25,8 @@ namespace Architech
                 {
                     item.Key.DropAllButRoot();
                     Destroy(item.Value);
-                    InStasis.Remove(item.Key);
                 }
+                InStasis.Clear();
             }
         }
         internal static void Subcribble(bool yes)

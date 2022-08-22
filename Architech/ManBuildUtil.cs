@@ -699,11 +699,10 @@ namespace Architech
                 {
                     if (item.Key && item.Value && item.Key.visible.isActive && item.Value.visible.isActive)
                     {
-                        if (MirroredRemove(item.Key, item.Value))
+                        if (!MirroredRemove(item.Key, item.Value))
                         {
-                        }
-                        else
                             error = true;
+                        }
                     }
                 }
                 if (error)
@@ -1320,11 +1319,7 @@ namespace Architech
             //    THIS CURRENTLY DOES NOT WORK WITH MIRROR BLOCKS THAT ARE OFFSET ROTATED TO BEGIN WITH - Will fix later
             if (!sameBlock)
             {
-                forward = otherRot * Vector3.forward;
-                forward.x *= -1;
-                up = otherRot * Vector3.up;
-                up.x *= -1;
-                return Quaternion.LookRotation(forward, up);
+                return GetCorrectSeperateBlockPairsRotation(block, otherRot);
             }
 
             // If we have the rotation cached for the type (when holding said block), we can skip recalculating
@@ -1394,6 +1389,24 @@ namespace Architech
             forward = offsetMirrorRot * forward;
             up = offsetMirrorRot * up;
 
+            return Quaternion.LookRotation(forward, up);
+        }
+
+        /// <summary>
+        /// NOTE: THIS IS INCOMPLETE - Plans are to use this to fix rotation in-accuracies present in other mods
+        /// </summary>
+        /// <param name="block"></param>
+        /// <param name="otherRot"></param>
+        /// <returns></returns>
+        public static Quaternion GetCorrectSeperateBlockPairsRotation(TankBlock block, Quaternion otherRot)
+        {
+            Vector3 forward;
+            Vector3 up;
+
+            forward = otherRot * Vector3.forward;
+            forward.x *= -1;
+            up = otherRot * Vector3.up;
+            up.x *= -1;
             return Quaternion.LookRotation(forward, up);
         }
 
