@@ -74,6 +74,9 @@ namespace Architech
         private static TankBlock lastDetached;
         private static BlockTypes lastType = BlockTypes.GSOAIController_111;
         private static BlockTypes pairType = BlockTypes.GSOAIController_111;
+        private static Dictionary<BlockTypes, MirrorAngle> cacheRotations = new Dictionary<BlockTypes, MirrorAngle>();
+        private static Dictionary<BlockTypes, MirrorAngle> cacheRotationsModded = new Dictionary<BlockTypes, MirrorAngle>();
+
         private static bool attachFrameDelay = false;
         internal static bool lastFramePlacementInvalid = false;
 
@@ -81,6 +84,7 @@ namespace Architech
 
         private static BlockBatch PointerBatchCache;
         private static BlockBatch MirrorBatchCache;
+
 
         public static void Init()
         {
@@ -100,6 +104,9 @@ namespace Architech
         {
             if (!inst)
                 return;
+
+            cacheRotationsModded.Clear();
+
 
             Destroy(OH.gameObject);
             OH = null;
@@ -396,6 +403,54 @@ namespace Architech
             }
         }
 
+        /// <summary>
+        /// True if newly registered
+        /// </summary>
+        private static bool RegisterBlockIfNeeded(BlockTypes type, MirrorAngle angle)
+        {
+            if (ManMods.inst.IsModdedBlock(type))
+            {
+                if (!cacheRotationsModded.TryGetValue(type, out _))
+                {
+                    cacheRotationsModded.Add(type, angle);
+                    return true;
+                }
+                else
+                    return false;
+            }
+            else
+            {
+                if (!cacheRotations.TryGetValue(type, out _))
+                {
+                    cacheRotations.Add(type, angle);
+                    return true;
+                }
+                else
+                    return false;
+            }
+        }
+        private static bool FetchRegisteredBlock(BlockTypes type, ref MirrorAngle angle)
+        {
+            if (ManMods.inst.IsModdedBlock(type))
+            {
+                if (cacheRotationsModded.TryGetValue(type, out angle))
+                {
+                    return true;
+                }
+                else
+                    return false;
+            }
+            else
+            {
+                if (cacheRotations.TryGetValue(type, out angle))
+                {
+                    return true;
+                }
+                else
+                    return false;
+            }
+        }
+
         public void UpdateHasNoTech()
         {
             if (ManPointer.inst.targetTank && Input.GetKey(KickStart.ChangeRoot))
@@ -659,30 +714,29 @@ namespace Architech
             {
                 Busy = true;
                 bool error = false;
+                bool attached = false;
                 foreach (var item in delayedAdd)
                 {
                     Tank targetTank = item.Key;
-                    /*
-                    if (currentTank)
-                        targetTank = currentTank;
-                    */
                     if (targetTank && item.Value && item.Key.visible.isActive && item.Value.visible.isActive)
                     {
                         if (IsMirroring)
                         {
-                            if (!MirroredPlacement(targetTank, item.Value))
+                            if (MirroredPlacement(targetTank, item.Value))
+                                attached = true;
+                            else
                                 error = true;
                         }
                         else
                         {
-                            if (!BatchPlacementNonMirror(targetTank, item.Value))
-                                error = true;
+                            if (BatchPlacementNonMirror(targetTank, item.Value))
+                                attached = true;
                         }
                     }
                 }
                 if (error)
                     Invoke("DelayedFail", 0.1f);
-                else
+                if (attached)
                     Invoke("DelayedAffirm", 0.1f);
                 delayedAdd.Clear();
                 Busy = false;
@@ -700,9 +754,7 @@ namespace Architech
                     if (item.Key && item.Value && item.Key.visible.isActive && item.Value.visible.isActive)
                     {
                         if (!MirroredRemove(item.Key, item.Value))
-                        {
                             error = true;
-                        }
                     }
                 }
                 if (error)
@@ -964,8 +1016,7 @@ namespace Architech
 
         private bool BatchPlacementNonMirror(Tank tankCase, TankBlock otherBlock)
         {
-            bool placed = false;
-            AttachAll(tankCase, otherBlock, PointerBatchCache);
+            bool placed = AttachAll(tankCase, otherBlock, PointerBatchCache);
             PointerBatchCache = null;
             return placed;
         }
@@ -1412,60 +1463,65 @@ namespace Architech
 
         public static void GetMirrorNormal(TankBlock block, ref MirrorAngle angle)
         {
-            if (HandleEdgeCases(block, out MirrorAngle angleFix))
+            if (!FetchRegisteredBlock(block.BlockType, ref angle))
             {
-                angle = angleFix;
-                return;
-            }
-
-            Vector3 blockCenter = block.BlockCellBounds.center;
-            Vector3[] posCentered = new Vector3[block.attachPoints.Length];
-            for (int step = 0; step < block.attachPoints.Length; step++)
-            {
-                posCentered[step] = block.attachPoints[step] - blockCenter;
-            }
-            bool smolBlock = block.filledCells.Length < 3;
-
-            if (!smolBlock)
-                GetMirrorSuggestion(posCentered, out angle);
-
-            if (angle == MirrorAngle.NeedsPrecise || smolBlock)
-            {
-                List<MeshFilter> meshes = new List<MeshFilter>();
-                if (block.GetComponent<MeshFilter>()?.sharedMesh)
+                if (HandleEdgeCases(block, out MirrorAngle angleFix))
                 {
-                    meshes.Add(block.GetComponent<MeshFilter>());
+                    angle = angleFix;
                 }
-
-                for (int step = 0; step < block.trans.childCount; step++)
-                {
-                    Transform transCase = block.trans.GetChild(step);
-                    if (transCase.GetComponent<MeshFilter>()?.sharedMesh)
+                else
+                { // Get the mirror plane
+                    Vector3 blockCenter = block.BlockCellBounds.center;
+                    Vector3[] posCentered = new Vector3[block.attachPoints.Length];
+                    for (int step = 0; step < block.attachPoints.Length; step++)
                     {
-                        meshes.Add(transCase.GetComponent<MeshFilter>());
+                        posCentered[step] = block.attachPoints[step] - blockCenter;
+                    }
+                    bool smolBlock = block.filledCells.Length < 3;
+
+                    if (!smolBlock)
+                        GetMirrorSuggestion(posCentered, out angle);
+
+                    if (angle == MirrorAngle.NeedsPrecise || smolBlock)
+                    {
+                        List<MeshFilter> meshes = new List<MeshFilter>();
+                        if (block.GetComponent<MeshFilter>()?.sharedMesh)
+                        {
+                            meshes.Add(block.GetComponent<MeshFilter>());
+                        }
+
+                        for (int step = 0; step < block.trans.childCount; step++)
+                        {
+                            Transform transCase = block.trans.GetChild(step);
+                            if (transCase.GetComponent<MeshFilter>()?.sharedMesh)
+                            {
+                                meshes.Add(transCase.GetComponent<MeshFilter>());
+                            }
+                        }
+
+                        if (meshes.Count > 0)
+                        {
+                            //Debug.Log("Block is too simple, trying meshes...");
+                            meshes = meshes.OrderByDescending(x => x.sharedMesh.bounds.size.sqrMagnitude).ToList();
+                            Transform transMesh = meshes.First().transform;
+                            Mesh mesh = meshes.First().sharedMesh;
+
+                            Vector3[] posCenteredMesh = new Vector3[mesh.vertices.Length];
+                            for (int step = 0; step < mesh.vertices.Length; step++)
+                            {
+                                posCenteredMesh[step] = block.trans.InverseTransformPoint(
+                                    transMesh.TransformPoint(mesh.vertices[step])) - blockCenter;
+                            }
+                            GetMirrorSuggestion(posCenteredMesh, out angle, true);
+                            //GetMirrorSuggestion(posCentered, out angle);
+                        }
+                    }
+                    if (angle == MirrorAngle.Z && block.GetComponent<ModuleWing>())
+                    {
+                        angle = MirrorAngle.Y;
                     }
                 }
-
-                if (meshes.Count > 0)
-                {
-                    //Debug.Log("Block is too simple, trying meshes...");
-                    meshes = meshes.OrderByDescending(x => x.sharedMesh.bounds.size.sqrMagnitude).ToList();
-                    Transform transMesh = meshes.First().transform;
-                    Mesh mesh = meshes.First().sharedMesh;
-
-                    Vector3[] posCenteredMesh = new Vector3[mesh.vertices.Length];
-                    for (int step = 0; step < mesh.vertices.Length; step++)
-                    {
-                        posCenteredMesh[step] = block.trans.InverseTransformPoint(
-                            transMesh.TransformPoint(mesh.vertices[step])) - blockCenter;
-                    }
-                    GetMirrorSuggestion(posCenteredMesh, out angle, true);
-                    //GetMirrorSuggestion(posCentered, out angle);
-                }
-            }
-            if (angle == MirrorAngle.Z && block.GetComponent<ModuleWing>())
-            {
-                angle = MirrorAngle.Y;
+                RegisterBlockIfNeeded(block.BlockType, angle);
             }
             //Debug.Log("Block " + block.name + " is mirror " + angle);
         }
