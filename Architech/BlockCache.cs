@@ -32,6 +32,18 @@ namespace Architech
             TidyUp();
         }
 
+        /// <summary>
+        /// CLONE
+        /// </summary>
+        /// <param name="Active"></param>
+        public BlockCache(BlockCache toCopy, TankBlock duplicate)
+        {
+            inst = duplicate;
+            t = toCopy.t;
+            p = toCopy.p;
+            r = toCopy.r;
+        }
+
         public static BlockCache CenterOn(TankBlock mainHeld, TankBlock toSet)
         {
             return new BlockCache(toSet, toSet.BlockType,
@@ -45,6 +57,7 @@ namespace Architech
             r = ManBuildUtil.SetCorrectRotation(ManBuildUtil.InvTransformRot(inst.trans, mainHeld.trans));
             return this;
         }
+
 
 
         public void HoldInRelation(TankBlock master)

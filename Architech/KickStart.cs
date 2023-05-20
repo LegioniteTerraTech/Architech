@@ -96,6 +96,16 @@ namespace Architech
             MirrorManager.Init();
             ManBuildUtil.Init();
             ManBlockBatches.Subcribble(true);
+            try
+            {
+
+                KickStartOptions.PushExtModOptionsHandling();
+                DebugArchitech.Log("Architech: Hooked up to ConfigHelper and NativeOptions!");
+            }
+            catch
+            {
+                DebugArchitech.Log("Architech: Failed to hook up to ConfigHelper and NativeOptions - they are likely not installed.");
+            }
         }
         public static void DeInitALL()
         {

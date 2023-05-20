@@ -36,8 +36,8 @@ namespace Architech
         internal static bool IsHoveringGrabbableTech => ManPointer.inst.targetVisible?.block?.tank ? ManPointer.inst.targetVisible.block.tank != Singleton.playerTank : false;
 
         internal static bool IsBatchActive = false;
-        internal static bool ToggleBatchMode => Input.GetKey(KickStart.ToggleBatch);
-        internal static bool ToggleMirrorMode => Input.GetKey(KickStart.ToggleMirrorMode);
+        internal static bool ToggleBatchMode => Input.GetKey(KickStart.ToggleBatch) && KickStart.IsIngame;
+        internal static bool ToggleMirrorMode => Input.GetKey(KickStart.ToggleMirrorMode) && KickStart.IsIngame;
         internal static bool IsHoveringMirrored => lastHovered;
         internal static bool IsHoldingMirrored => MirrorHeld;
         internal bool IsHoldingBatch => PointerBatchCache || MirrorBatchCache;
@@ -62,6 +62,14 @@ namespace Architech
             SnapToMirrorAxi(rBlock.localPosition +
                 (rBlock.localRotation * rBlock.GetComponent<TankBlock>().BlockCellBounds.center))
             : currentTank.blockBounds.center;
+        internal static Vector3 GetTankCenterNoCheck(Tank currentTank)
+        {
+            var rBlock = currentTank.rootBlockTrans;
+            return rBlock.GetComponent<TankBlock>() ?
+            SnapToMirrorAxi(rBlock.localPosition +
+                (rBlock.localRotation * rBlock.GetComponent<TankBlock>().BlockCellBounds.center))
+            : currentTank.blockBounds.center;
+        }
 
         private static string lastDraggedName;
         private static Vector3 lastDraggedPosition = Vector3.zero;
@@ -83,7 +91,9 @@ namespace Architech
         private static MirrorAngle cachedMirrorAngle = MirrorAngle.None;
 
         private static BlockBatch PointerBatchCache;
+        private static bool PointerBatchCacheMirrorCheck = false;
         private static BlockBatch MirrorBatchCache;
+        private static bool MirrorBatchCacheIsInventory = false;
 
 
         public static void Init()
@@ -453,7 +463,7 @@ namespace Architech
 
         public void UpdateHasNoTech()
         {
-            if (ManPointer.inst.targetTank && Input.GetKey(KickStart.ChangeRoot))
+            if (ManPointer.inst.targetTank && Input.GetKey(KickStart.ChangeRoot) && KickStart.IsIngame)
             {   // Root Setter
                 if (IsBatchActive)
                     RebuildTechCabForwards(ManPointer.inst.targetTank);
@@ -540,14 +550,14 @@ namespace Architech
                 if (ManPointer.inst.targetVisible?.block)
                 {
                     TankBlock PlayerHeld = ManPointer.inst.targetVisible.block;
-                    CarryBatchesNonMirror(PlayerHeld);
+                    CarryBlockBatchesNoMirror(PlayerHeld);
                     attachFrameDelay = true;
                     return;
                 }
                 else if (ManPointer.inst.DraggingItem?.block)
                 {
                     TankBlock PlayerHeld = ManPointer.inst.DraggingItem.block;
-                    CarryBatchesNonMirror(PlayerHeld);
+                    CarryBlockBatchesNoMirror(PlayerHeld);
                     attachFrameDelay = true;
                     return;
                 }
@@ -590,7 +600,7 @@ namespace Architech
                 return;
             }
 
-            if (Input.GetKey(KickStart.ChangeRoot))
+            if (Input.GetKey(KickStart.ChangeRoot) && KickStart.IsIngame)
             {
                 if (IsBatchActive)
                     RebuildTechCabForwards(currentTank);
@@ -622,15 +632,14 @@ namespace Architech
                 {
                     if (MirrorBatchCache && MirrorBatchCache.Count > 0)
                     {
-                        MirrorBatchCache.DropAllButRoot();
-                        MirrorBatchCache = null;
+                        DropMirrorBlockBatch(true, false);
                     }
                     if (MirrorHeld)
                     {
                         PostGrabBlock(MirrorHeld);
                         DropMirror();
                     }
-                    CarryBatchesNonMirror(playerHeld);
+                    CarryBlockBatchesNoMirror(playerHeld);
                 }
                 else
                     UpdateMirrorHeldBlock(playerHeld, false);
@@ -648,10 +657,10 @@ namespace Architech
                 DebugArchitech.Assert(true, "Architech: ManBuildUtil - Cannot nest BlockBatches!");
                 return;
             }
-
+            PointerBatchCacheMirrorCheck = true;
             PointerBatchCache = BB;
         }
-        public static void TryPushToMirrorBatch(BlockBatch BB)
+        public static void TryPushToMirrorBatch(BlockBatch BB, bool isInventory)
         {
             if (MirrorBatchCache)
             {
@@ -666,8 +675,20 @@ namespace Architech
             DebugArchitech.Assert(!BB.Root, "Architech: ManBuildUtil - MirrorBatchCache's root IS NULL!");
             MirrorHeld = BB.Root;
             MirrorBatchCache = BB;
+            MirrorBatchCacheIsInventory = isInventory;
+            PointerBatchCacheMirrorCheck = false;
         }
 
+        internal static bool CanReleaseMirrorBlockBatch()
+        {
+            if (!MirrorBatchCache)
+                return false;
+            if (MirrorBatchCacheIsInventory)
+            {
+                return HasNeededInInventory(currentTank, MirrorBatchCache.GetAllBlockTypes());
+            }
+            return true;
+        }
         public void DropMirror()
         {
             if (InventoryBlock)
@@ -680,15 +701,48 @@ namespace Architech
                 PointerBatchCache.DropAllButRoot();
             PointerBatchCache = null;
 
-            if (MirrorBatchCache)
-                MirrorBatchCache.DropAllButRoot();
-            MirrorBatchCache = null;
+            DropMirrorBlockBatch(true, false);
         }
+        internal static void DropMirrorBlockBatch(bool DropAllButRoot, bool KeepInWorld)
+        {
+            if (MirrorBatchCache)
+            {
+                if (DropAllButRoot)
+                    MirrorBatchCache.DropAllButRoot();
+                if (KeepInWorld)
+                {
+                    if (MirrorBatchCacheIsInventory)
+                        TakeNeededFromInventory(currentTank, MirrorBatchCache.GetAllBlockTypes());
+                }
+                else
+                {
+                    if (MirrorBatchCacheIsInventory)
+                    {
+                        foreach (var item in MirrorBatchCache.GetAllBlocks())
+                        {
+                            ManLooseBlocks.inst.RequestDespawnBlock(item, DespawnReason.Host);
+                        }
+                    }
+                }
+            }
+            MirrorBatchCache = null;
+            MirrorBatchCacheIsInventory = false;
+        }
+
+
         public void ReleaseAndTryMaintainBatches()
         {
-            ManBlockBatches.TryMaintainDroppedMirror(MirrorBatchCache, ManBlockBatches.TryMaintainDropped(PointerBatchCache));
+            if (CanReleaseMirrorBlockBatch())
+            {
+                ManBlockBatches.TryMaintainDroppedMirror(MirrorBatchCache, ManBlockBatches.TryMaintainDropped(PointerBatchCache));
+                DropMirrorBlockBatch(false, true);
+            }
+            else
+            {
+                ManBlockBatches.TryMaintainDropped(PointerBatchCache);
+                DropMirrorBlockBatch(false, false);
+            }
             PointerBatchCache = null;
-            MirrorBatchCache = null;
         }
         public void DropAll(bool ExcludeHoverAndMaintainBatches = false)
         {
@@ -886,7 +940,7 @@ namespace Architech
                     else
                     {
                         cachedMirrorAngle = MirrorAngle.None;
-                        CarryBatchesNonMirror(toMirror);
+                        CarryBlockBatchesNoMirror(toMirror);
                     }
                 }
                 else
@@ -1008,7 +1062,7 @@ namespace Architech
 
 
 
-        public void CarryBatchesNonMirror(TankBlock otherBlock)
+        public void CarryBlockBatchesNoMirror(TankBlock otherBlock)
         {
             if (PointerBatchCache)
                 PointerBatchCache.UpdateHold();
@@ -1042,14 +1096,20 @@ namespace Architech
                             DebugArchitech.LogError("BuildUtil: Could not fetch mirrored!");
                         mirrorSideBC.inst = toCollect;
                         if (!MirrorBatchCache)
+                        {
                             MirrorBatchCache = new BlockBatch(MirrorHeld);
+                            MirrorBatchCacheIsInventory = false;
+                        }
                         MirrorBatchCache.Add(mirrorSideBC);
                     }
                     else
                     {   // Player Side
                         playerSideBC.inst = toCollect;
                         if (!PointerBatchCache)
+                        {
                             PointerBatchCache = new BlockBatch(TB);
+                            PointerBatchCacheMirrorCheck = true;
+                        }
                         PointerBatchCache.Add(playerSideBC);
                     }
                 }
@@ -1059,7 +1119,10 @@ namespace Architech
                     {   // Player Side
                         playerSideBC.inst = toCollect;
                         if (!PointerBatchCache)
+                        {
                             PointerBatchCache = new BlockBatch(TB);
+                            PointerBatchCacheMirrorCheck = true;
+                        }
                         PointerBatchCache.Add(playerSideBC);
                     }
                     else
@@ -1068,7 +1131,10 @@ namespace Architech
                             DebugArchitech.LogError("BuildUtil: Could not fetch mirrored!");
                         mirrorSideBC.inst = toCollect;
                         if (!MirrorBatchCache)
+                        {
                             MirrorBatchCache = new BlockBatch(MirrorHeld);
+                            MirrorBatchCacheIsInventory = false;
+                        }
                         MirrorBatchCache.Add(mirrorSideBC);
                     }
                 }
@@ -1158,11 +1224,66 @@ namespace Architech
 
             mirror.trans.position = currentTank.trans.TransformPoint(centerMirror);
             mirror.trans.rotation = TransformRot(rotMirror, currentTank);
+            UpdateHeldBlockBatches();
+        }
+        
+        internal static void DoMirroredRotationInRelationToTankNotSpawned(Tank currentTank, bool hasMirrorPairBlock, ref TankBlock toMirror)
+        {
+            if (currentTank == null)
+                return;
+            TankBlock mirrorPre = toMirror;
 
+            Vector3 MirrorBlockPos = currentTank.trans.InverseTransformPoint(toMirror.trans.position);
+
+            Vector3 blockCenter = mirrorPre.BlockCellBounds.center;
+            Quaternion rotOther = InvTransformRot(toMirror.trans, currentTank);
+
+            Vector3 tankCenter = GetTankCenterNoCheck(currentTank);
+            Vector3 centerDelta = MirrorBlockPos + (rotOther * blockCenter) - tankCenter;
+
+            Quaternion rotMirror = MirroredRot(mirrorPre, rotOther, !hasMirrorPairBlock);
+            centerDelta.x *= -1;
+
+            blockCenter = mirrorPre.BlockCellBounds.center;
+
+            Vector3 centerMirror = (-(rotMirror * blockCenter)) + tankCenter + centerDelta;
+
+            if (DebugBlockRotations)
+            {
+                DrawDirIndicator(mirrorPre.gameObject, 0, mirrorPre.trans.TransformVector(Vector3.right * 3), new Color(1, 0, 0));
+                DrawDirIndicator(mirrorPre.gameObject, 1, mirrorPre.trans.TransformVector(Vector3.up * 3), new Color(0, 1, 0));
+                DrawDirIndicator(mirrorPre.gameObject, 2, mirrorPre.trans.TransformVector(Vector3.forward * 3), new Color(0, 0, 1));
+            }
+            // Apply
+            mirrorPre.trans.position = currentTank.trans.TransformPoint(centerMirror);
+            mirrorPre.trans.rotation = TransformRot(rotMirror, currentTank);
+        }
+        internal static void UpdateHeldBlockBatches()
+        {
             if (PointerBatchCache)
+            {
                 PointerBatchCache.UpdateHold();
-            if (MirrorBatchCache)
+
+                if (MirrorBatchCache)
+                    MirrorBatchCache.UpdateHold();
+                else if (PointerBatchCacheMirrorCheck && HasNeededInInventory(currentTank,
+                    PointerBatchCache.GetAllBlockTypes().ConvertAll(x => GetPair(x))))
+                {
+                    TryPushToMirrorBatch(new BlockBatch(currentTank, PointerBatchCache), true);
+                    if (MirrorBatchCache)
+                        MirrorBatchCache.UpdateHold();
+                }
+                PointerBatchCacheMirrorCheck = false;
+            }
+            else if (MirrorBatchCache)
                 MirrorBatchCache.UpdateHold();
+        }
+
+        internal static bool CanAttachMirrorBlockBatch()
+        {
+            if (!MirrorBatchCache)
+                return false;
+            return HasNeededInInventory(currentTank, MirrorBatchCache.GetAllBlockTypes());
         }
 
         public static Vector3 TryGetCenter(Tank tankCase)
@@ -1230,12 +1351,12 @@ namespace Architech
             if (TechUtils.AttemptBlockAttachExt(tankCase, BC, newBlock))
             {
                 if (fromInv)
-                    TechUtils.IsBlockAvailInInventory(tankCase, BC.t, true);
+                    TechUtils.IsBlockAvailInInventory(tankCase, BC.t, 1, true);
 
                 AttachAll(tankCase, otherBlock, PointerBatchCache);
                 PointerBatchCache = null;
                 AttachAll(tankCase, newBlock, MirrorBatchCache);
-                MirrorBatchCache = null;
+                DropMirrorBlockBatch(false, true);
                 return true;
             }
             else
@@ -1245,9 +1366,7 @@ namespace Architech
 
                 AttachAll(tankCase, otherBlock, PointerBatchCache);
                 PointerBatchCache = null;
-                if (MirrorBatchCache)
-                    MirrorBatchCache.DropAllButRoot();
-                MirrorBatchCache = null;
+                DropMirrorBlockBatch(true, false);
                 /*
                 newBlock.trans.position = tankCase.trans.TransformPoint(centerMirror + (rotMirror * blockCenter));
                 newBlock.trans.rotation = TransformRot(rotMirror);
@@ -1461,6 +1580,7 @@ namespace Architech
             return Quaternion.LookRotation(forward, up);
         }
 
+        private static List<MeshFilter> meshes = new List<MeshFilter>();
         public static void GetMirrorNormal(TankBlock block, ref MirrorAngle angle)
         {
             if (!FetchRegisteredBlock(block.BlockType, ref angle))
@@ -1484,7 +1604,6 @@ namespace Architech
 
                     if (angle == MirrorAngle.NeedsPrecise || smolBlock)
                     {
-                        List<MeshFilter> meshes = new List<MeshFilter>();
                         if (block.GetComponent<MeshFilter>()?.sharedMesh)
                         {
                             meshes.Add(block.GetComponent<MeshFilter>());
@@ -1499,21 +1618,22 @@ namespace Architech
                             }
                         }
 
-                        if (meshes.Count > 0)
+                        if (meshes.Any())
                         {
                             //Debug.Log("Block is too simple, trying meshes...");
                             meshes = meshes.OrderByDescending(x => x.sharedMesh.bounds.size.sqrMagnitude).ToList();
                             Transform transMesh = meshes.First().transform;
                             Mesh mesh = meshes.First().sharedMesh;
 
-                            Vector3[] posCenteredMesh = new Vector3[mesh.vertices.Length];
+                            Vector3[] posCenteredMesh = mesh.vertices;
                             for (int step = 0; step < mesh.vertices.Length; step++)
                             {
                                 posCenteredMesh[step] = block.trans.InverseTransformPoint(
-                                    transMesh.TransformPoint(mesh.vertices[step])) - blockCenter;
+                                    transMesh.TransformPoint(posCenteredMesh[step])) - blockCenter;
                             }
                             GetMirrorSuggestion(posCenteredMesh, out angle, true);
                             //GetMirrorSuggestion(posCentered, out angle);
+                            meshes.Clear();
                         }
                     }
                     if (angle == MirrorAngle.Z && block.GetComponent<ModuleWing>())
@@ -1526,6 +1646,12 @@ namespace Architech
             //Debug.Log("Block " + block.name + " is mirror " + angle);
         }
 
+        private static Vector3 angle45 = new Vector3(1, 0, 1).normalized;
+        private static Vector3 angleInv45 = new Vector3(-1, 0, 1).normalized;
+        private static Vector3 angle45Z = new Vector3(1, 1, 0).normalized; // upper right
+        private static Vector3 angle45InvZ = new Vector3(-1, 1, 0).normalized; // upper left
+        private static Vector3 angle45X = new Vector3(0, 1, 1).normalized; // upper right
+        private static Vector3 angle45InvX = new Vector3(0, 1, -1).normalized; // upper left
         /// <summary>
         /// returns true if the answer is not vague
         /// Needs optimization that accounts for Sphere and Box Colliders
@@ -1536,30 +1662,23 @@ namespace Architech
         /// <returns></returns>
         public static bool GetMirrorSuggestion(Vector3[] posCentered, out MirrorAngle angle, bool doComplex = false)
         {
-
             int countX = CountOffCenter(posCentered, Vector3.forward);
 
             int countZ = CountOffCenter(posCentered, Vector3.right);
 
             int countY = CountOffCenterY(posCentered);
 
-            Vector3 angle45 = new Vector3(1, 0, 1).normalized;
             int count90 = CountOffCenter(posCentered, angle45);
 
-            Vector3 angleInv45 = new Vector3(-1, 0, 1).normalized;
             int count90Inv = CountOffCenter(posCentered, angleInv45);
 
 
-            Vector3 angle45Z = new Vector3(1, 1, 0).normalized; // upper right
             int count90Z = CountOffCenterZ(posCentered, angle45Z);
 
-            Vector3 angle45InvZ = new Vector3(-1, 1, 0).normalized; // upper left
             int count90ZInv = CountOffCenterZ(posCentered, angle45InvZ);
 
-            Vector3 angle45X = new Vector3(0, 1, 1).normalized; // upper right
             int count90X = CountOffCenterX(posCentered, angle45X);
 
-            Vector3 angle45InvX = new Vector3(0, 1, -1).normalized; // upper left
             int count90XInv = CountOffCenterX(posCentered, angle45InvX);
 
             List<KeyValuePair<int, MirrorAngle>> comp = new List<KeyValuePair<int, MirrorAngle>> {
@@ -1581,9 +1700,9 @@ namespace Architech
 
                 new KeyValuePair<int, MirrorAngle>(count90XInv, MirrorAngle.XCornerInv),
             };
-            comp = comp.OrderBy(x => Mathf.Abs(x.Key)).ToList();
-            angle = comp.First().Value;
-            if (Mathf.Abs(comp.First().Key) > 2)
+            var first = comp.OrderBy(x => Mathf.Abs(x.Key)).First();
+            angle = first.Value;
+            if (Mathf.Abs(first.Key) > 2)
             {
                 if (!doComplex)
                 {
@@ -1702,8 +1821,12 @@ namespace Architech
 
         public static BlockTypes GetPair(TankBlock TB)
         {
-            BlockTypes BT = TB.BlockType;
-            if (ModdedMirrored(TB, out BlockTypes mirror))
+            return GetPair(TB.BlockType);
+        }
+        public static BlockTypes GetPair(BlockTypes type)
+        {
+            BlockTypes BT = type;
+            if (ModdedMirrored(BT, out BlockTypes mirror))
             {
                 return mirror;
             }
@@ -1796,6 +1919,12 @@ namespace Architech
             }
         }
 
+        public static Quaternion InvTransformRot(Quaternion rot, Transform trans)
+        {
+            return Quaternion.Inverse(trans.rotation) * rot;
+        }
+
+
         public static Quaternion InvTransformRot(Transform transRotateGet, Transform trans)
         {
             return Quaternion.Inverse(trans.rotation) * transRotateGet.rotation;
@@ -1871,7 +2000,7 @@ namespace Architech
                 else if (pointerBlock && SetToAnchor(ref pointerBlock, ref PointerBatchCache))
                 {
                     DebugArchitech.Log("New root " + pointerBlock.name);
-                    inst.CarryBatchesNonMirror(pointerBlock);
+                    inst.CarryBlockBatchesNoMirror(pointerBlock);
                     PointerBatchCache.DropAllButRoot();
                     Tank tank = pointerBlock.GetComponentInParent<Tank>();
                     if (!tank)
@@ -1885,7 +2014,7 @@ namespace Architech
                 else if (pointerBlock && SetToCab(ref pointerBlock, ref PointerBatchCache))
                 {
                     DebugArchitech.Log("New root " + pointerBlock.name);
-                    inst.CarryBatchesNonMirror(pointerBlock);
+                    inst.CarryBlockBatchesNoMirror(pointerBlock);
                     PointerBatchCache.DropAllButRoot();
                     Tank tank = pointerBlock.GetComponentInParent<Tank>();
                     if (!tank)
@@ -1912,7 +2041,7 @@ namespace Architech
                 if (pointerBlock && SetToAnchor(ref pointerBlock, ref PointerBatchCache))
                 {
                     DebugArchitech.Log("New root " + pointerBlock.name);
-                    inst.CarryBatchesNonMirror(pointerBlock);
+                    inst.CarryBlockBatchesNoMirror(pointerBlock);
                     PointerBatchCache.DropAllButRoot();
                     Tank tank = pointerBlock.GetComponentInParent<Tank>();
                     if (!tank)
@@ -1926,7 +2055,7 @@ namespace Architech
                 else if (pointerBlock && SetToCab(ref pointerBlock, ref PointerBatchCache))
                 {
                     DebugArchitech.Log("New root " + pointerBlock.name);
-                    inst.CarryBatchesNonMirror(pointerBlock);
+                    inst.CarryBlockBatchesNoMirror(pointerBlock);
                     PointerBatchCache.DropAllButRoot();
                     Tank tank = pointerBlock.GetComponentInParent<Tank>();
                     if (!tank)
@@ -2547,11 +2676,11 @@ namespace Architech
             }
         }
 
-        public static bool ModdedMirrored(TankBlock block, out BlockTypes mirror)
+        public static bool ModdedMirrored(BlockTypes type, out BlockTypes mirror)
         {
-            if (ManMods.inst.IsModdedBlock(block.BlockType))
+            if (ManMods.inst.IsModdedBlock(type))
             {
-                int id = (int)block.BlockType;
+                int id = (int)type;
                 string name = ManMods.inst.FindBlockName(id);
                 string nameFiltered;
                 string name2;
@@ -2627,6 +2756,45 @@ namespace Architech
             mirror = BlockTypes.GSOCockpit_111;
             return false;
         }
+
+        public static bool HasNeededInInventory(Tank currentTank, List<BlockCache> BB)
+        {
+            return HasNeededInInventory(currentTank, BB.ConvertAll(x => x.t));
+        }
+        public static bool HasNeededInInventory(Tank currentTank, List<BlockTypes> BT)
+        {
+            Dictionary<BlockTypes, int> counts = new Dictionary<BlockTypes, int>();
+            foreach (var item in BT)
+            {
+                if (counts.TryGetValue(item, out int val))
+                    counts[item] = val + 1;
+                else
+                    counts[item] = 1;
+            }
+            foreach (var item in counts)
+            {
+                if (!TechUtils.IsBlockAvailInInventory(currentTank, item.Key, item.Value))
+                    return false;
+            }
+            return true;
+        }
+
+        public static void TakeNeededFromInventory(Tank currentTank, List<BlockTypes> BT)
+        {
+            Dictionary<BlockTypes, int> counts = new Dictionary<BlockTypes, int>();
+            foreach (var item in BT)
+            {
+                if (counts.TryGetValue(item, out int val))
+                    counts[item] = val + 1;
+                else
+                    counts[item] = 1;
+            }
+            foreach (var item in counts)
+            {
+                TechUtils.IsBlockAvailInInventory(currentTank, item.Key, item.Value, true);
+            }
+        }
+
 
         internal enum MirrorAngle
         {

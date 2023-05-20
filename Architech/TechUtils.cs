@@ -8,9 +8,9 @@ namespace Architech
 {
     internal static class TechUtils
     {
+        public static List<BlockTypes> typesToRepair = new List<BlockTypes>();
         public static List<BlockTypes> GetMissingBlockTypesExt(List<BlockCache> Mem, List<TankBlock> cBlocks)
         {
-            List<BlockTypes> typesToRepair = new List<BlockTypes>();
             int toFilter = Mem.Count();
             for (int step = 0; step < toFilter; step++)
             {
@@ -28,6 +28,7 @@ namespace Architech
                 if (mem > present)// are some blocks not accounted for?
                     typesMissing.Add(typesToRepair[step]);
             }
+            typesToRepair.Clear();
             return typesMissing;
         }
         /// <summary>
@@ -113,7 +114,7 @@ namespace Architech
 
 
 
-        public static bool IsBlockAvailInInventory(Tank tank, BlockTypes blockType, bool taking = false)
+        public static bool IsBlockAvailInInventory(Tank tank, BlockTypes blockType, int count = 1, bool taking = false)
         {
             if (!ManSpawn.IsPlayerTeam(tank.Team))
                 return true;// Non-player Teams don't actually come with limited inventories.  strange right?
@@ -133,14 +134,14 @@ namespace Architech
                         {
                             if (Singleton.Manager<NetInventory>.inst.IsAvailableToLocalPlayer(blockType))
                             {
-                                return Singleton.Manager<NetInventory>.inst.GetQuantity(blockType) > 0;
+                                return Singleton.Manager<NetInventory>.inst.GetQuantity(blockType) >= count;
                             }
                         }
                         else
                         {
                             if (Singleton.Manager<SingleplayerInventory>.inst.IsAvailableToLocalPlayer(blockType))
                             {
-                                return Singleton.Manager<SingleplayerInventory>.inst.GetQuantity(blockType) > 0;
+                                return Singleton.Manager<SingleplayerInventory>.inst.GetQuantity(blockType) >= count;
                             }
                         }
                     }
@@ -167,9 +168,9 @@ namespace Architech
                         if (Singleton.Manager<NetInventory>.inst.IsAvailableToLocalPlayer(blockType))
                         {
                             availQuant = Singleton.Manager<NetInventory>.inst.GetQuantity(blockType);
-                            if (availQuant > 0)
+                            if (availQuant >= count)
                             {
-                                availQuant--;
+                                availQuant -= count;
                                 isAvail = true;
                                 Singleton.Manager<NetInventory>.inst.SetBlockCount(blockType, availQuant);
                             }
@@ -180,9 +181,9 @@ namespace Architech
                         if (Singleton.Manager<SingleplayerInventory>.inst.IsAvailableToLocalPlayer(blockType))
                         {
                             availQuant = Singleton.Manager<SingleplayerInventory>.inst.GetQuantity(blockType);
-                            if (availQuant > 0)
+                            if (availQuant >= count)
                             {
-                                availQuant--;
+                                availQuant -= count;
                                 isAvail = true;
                                 Singleton.Manager<SingleplayerInventory>.inst.SetBlockCount(blockType, availQuant);
                             }
@@ -196,6 +197,6 @@ namespace Architech
             }
             return isAvail;
         }
-
+        
     }
 }

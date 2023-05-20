@@ -14,6 +14,9 @@ namespace Architech
     {
         private TankBlock root;
         public TankBlock Root => root;
+        /// <summary>
+        /// Does NOT include the root block which other blocks are positioned around
+        /// </summary>
         public readonly List<BlockCache> batch = new List<BlockCache>();
         private Bounds bounds = new Bounds();
         public int Count => batch.Count;
@@ -21,6 +24,45 @@ namespace Architech
         public BlockBatch(TankBlock Root)
         {
             root = Root;
+        }
+        /// <summary>
+        /// PULLS BLOCKS FROM INVENTORY
+        /// </summary>
+        /// <param name="toCopy"></param>
+        public BlockBatch(BlockBatch toCopy)
+        {
+            root = ManLooseBlocks.inst.HostSpawnBlock(toCopy.root.BlockType, toCopy.root.trans.position, toCopy.root.trans.rotation);
+            foreach (var item in toCopy)
+            {
+                TankBlock block = ManLooseBlocks.inst.HostSpawnBlock(item.t, item.inst.trans.position, item.inst.trans.rotation);
+                Possess(block);
+                BlockCache BC = new BlockCache(item, block);
+                BC.TidyUp();
+                batch.Add(BC);
+            }
+            UpdateHold();
+        }
+        /// <summary>
+        /// COPY MIRRORED
+        /// </summary>
+        /// <param name="hostTank"></param>
+        /// <param name="toCopy"></param>
+        public BlockBatch(Tank hostTank, BlockBatch toCopy)
+        {
+            BlockTypes rootMirrorType = ManBuildUtil.GetPair(toCopy.Root.BlockType);
+            root = ManLooseBlocks.inst.HostSpawnBlock(rootMirrorType, toCopy.root.trans.position, toCopy.root.trans.rotation);
+            ManBuildUtil.DoMirroredRotationInRelationToTankNotSpawned(hostTank, rootMirrorType != toCopy.Root.BlockType, ref root);
+            foreach (var item in toCopy)
+            {
+                BlockTypes childMirrorType = ManBuildUtil.GetPair(item.t);
+                TankBlock block = ManLooseBlocks.inst.HostSpawnBlock(childMirrorType, item.inst.trans.position, item.inst.trans.rotation);
+                ManBuildUtil.DoMirroredRotationInRelationToTankNotSpawned(hostTank, childMirrorType != item.t, ref block);
+                BlockCache BC = new BlockCache(item, block);
+                BC.TidyUp();
+                batch.Add(BC);
+            }
+            BatchReCenterOn(root);
+            UpdateHold();
         }
 
         public static implicit operator bool(BlockBatch inst)
@@ -247,6 +289,26 @@ namespace Architech
             }
         }
 
+        private static List<BlockTypes> blockT = new List<BlockTypes>();
+        public List<BlockTypes> GetAllBlockTypes()
+        {
+            blockT.Clear();
+            blockT.Add(root.BlockType);
+            blockT.AddRange(batch.ConvertAll(x => x.t));
+            return blockT;
+        }
+        private static List<TankBlock> tankB = new List<TankBlock>();
+        public List<TankBlock> GetAllBlocks()
+        {
+            tankB.Clear();
+            tankB.Add(root);
+            tankB.AddRange(batch.ConvertAll(x => x.inst));
+            return tankB;
+        }
+        public bool HasAllBlocksNeededInInventory(Tank currentTank)
+        {
+            return ManBuildUtil.HasNeededInInventory(currentTank, GetAllBlockTypes());
+        }
 
         private static void Possess(TankBlock TB)
         {

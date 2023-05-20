@@ -62,16 +62,58 @@ namespace Architech
             DebugArchitech.Assert(InStasis.TryGetValue(BB, out _), "Architech: ManBlockBatches - InStasis already has the batch and we are adding it again!");
             DebugArchitech.Assert(!BB.Root, "Architech: ManBlockBatches - BlockBatch root is NULL");
             BB.InsureAboveGround();
-            if (BB.Root && !BB.Root.IsAttached)
+            return InsertStasis(BB);
+        }
+        internal static bool CloneNoStasis(Tank currentTank, BlockBatch BB, out BlockBatch clone)
+        {
+            clone = null;
+            if (!BB || currentTank == null)
+                return false;
+            if (!ManBuildUtil.HasNeededInInventory(currentTank, BB.GetAllBlockTypes()))
+                return false;
+            clone = new BlockBatch(BB);
+            DebugArchitech.Assert(InStasis.TryGetValue(clone, out _), "Architech: ManBlockBatches - InStasis already has the batch and we are adding it again!");
+            DebugArchitech.Assert(!clone.Root, "Architech: ManBlockBatches - BlockBatch root is NULL");
+            clone.InsureAboveGround();
+            return true;
+        }
+        internal static bool CloneNoStasisMirrored(Tank currentTank, BlockBatch BB, out BlockBatch cloneMirror)
+        {
+            cloneMirror = null;
+            if (!BB || currentTank == null)
+                return false;
+            if (!ManBuildUtil.HasNeededInInventory(currentTank, BB.GetAllBlockTypes().ConvertAll(x => ManBuildUtil.GetPair(x))))
+                return false;
+            cloneMirror = new BlockBatch(currentTank, BB);
+            DebugArchitech.Assert(InStasis.TryGetValue(cloneMirror, out _), "Architech: ManBlockBatches - InStasis already has the batch and we are adding it again!");
+            DebugArchitech.Assert(!cloneMirror.Root, "Architech: ManBlockBatches - BlockBatch root is NULL");
+            cloneMirror.InsureAboveGround();
+            return true;
+        }
+        internal static bool Clone(BlockBatch BB, Tank currentTank)
+        {
+            if (CloneNoStasis(currentTank, BB, out var clone))
             {
-                VagueBounds VB = MakeNewVagueBounds(BB, true, null);
-                InStasis.Add(BB, VB);
-                return VB;
+                return InsertStasis(clone);
             }
-            else
-                BB.DropAllButRoot();
+            return false;
+        }
+        internal static VagueBounds InsertStasis(BlockBatch BB)
+        {
+            if (BB != null)
+            {
+                if (BB.Root && !BB.Root.IsAttached)
+                {
+                    VagueBounds VB = MakeNewVagueBounds(BB, true, null);
+                    InStasis.Add(BB, VB);
+                    return VB;
+                }
+                else
+                    BB.DropAllButRoot();
+            }
             return null;
         }
+
         internal static void TryMaintainDroppedMirror(BlockBatch BB, VagueBounds BBMirror)
         {
             if (!BB)
@@ -86,6 +128,7 @@ namespace Architech
             else
                 BB.DropAllButRoot();
         }
+
 
         private readonly List<KeyValuePair<BlockBatch, VagueBounds>> dropped = new List<KeyValuePair<BlockBatch, VagueBounds>>();
         internal void Update()
@@ -118,6 +161,7 @@ namespace Architech
                 dropped.Clear();
             }
         }
+
 
         int mask = Globals.inst.layerPickup.mask;
         private void TryGetStasisBatch(ManPointer.Event button, bool down, bool yes)
@@ -165,6 +209,7 @@ namespace Architech
                 }
             }
         }
+
         internal class VagueBounds : MonoBehaviour
         {
             internal BlockBatch batchAssigned;
@@ -240,6 +285,11 @@ namespace Architech
                 DebugArchitech.Info(gameObject.name + " - Added new VagueBounds of size " + bC.size + ", center " + bC.center);
                 return this;
             }
+            internal void InitMirror()
+            {
+                if (mirrorPair == null && CloneNoStasisMirrored(Singleton.playerTank, batchAssigned, out var mirrorBatch))
+                    mirrorPair = InsertStasis(mirrorBatch);
+            }
 
             internal void Grab(Ray toCast)
             {
@@ -266,8 +316,21 @@ namespace Architech
                     DebugArchitech.Info(mirrorPair.gameObject.name + " - Grabbed(Mirror)");
                     //TankBlock newRoot = batchAssigned.TryGetBlockFromLocalPosition(newCenterPos); // will need better maths for this
                     //mirrorPair.batchAssigned.BatchCenterOnNoGrab(newRoot);
-                    ManBuildUtil.TryPushToMirrorBatch(mirrorPair.batchAssigned);
+                    ManBuildUtil.TryPushToMirrorBatch(mirrorPair.batchAssigned, false);
                     mirrorPair.DeInit(false);
+                }
+                else if (ManBuildUtil.IsMirroring)
+                {
+                    DebugArchitech.Log(gameObject.name + " - Creating Mirrored Copy Batch");
+                    InitMirror();
+                    if (mirrorPair)
+                    {
+                        DebugArchitech.Info(mirrorPair.gameObject.name + " - Created Mirrored Copy Batch");
+                        ManBuildUtil.TryPushToMirrorBatch(mirrorPair.batchAssigned, true);
+                        mirrorPair.DeInit(false);
+                    }
+                    else
+                        DebugArchitech.Log(gameObject.name + " - Failed to create Mirrored Copy Batch");
                 }
                 DeInit(false);
             }
@@ -293,43 +356,31 @@ namespace Architech
                     ManBuildUtil.TryPushToCursorBatch(batch);
                     if (ManBuildUtil.IsMirroring)
                     {
-                        if (mirrorPair && mirrorPair.TryCopy(out BlockBatch batchM))
+                        BlockBatch newBatch;
+                        if (mirrorPair && mirrorPair.TryCopy(out newBatch))
                         {
+                            ManBuildUtil.TakeNeededFromInventory(Singleton.playerTank, newBatch.GetAllBlockTypes());
                             DebugArchitech.Info(gameObject.name + " - Grabbed Duplicate(Mirror)");
-                            ManBuildUtil.TryPushToMirrorBatch(batchM);
+                            ManBuildUtil.TryPushToMirrorBatch(newBatch, false);
                         }
                         // Need a big function for this
-                        //else if (TryCopyMirrored(out BlockBatch batch2))
-                        //    ManBuildUtil.TryPushToMirrorBatch(batch);
+                        else if (TryCopyMirrored(out newBatch))
+                        {
+                            ManBuildUtil.TakeNeededFromInventory(Singleton.playerTank, newBatch.GetAllBlockTypes());
+                            DebugArchitech.Info(gameObject.name + " - Created Duplicate(Mirror)");
+                            ManBuildUtil.TryPushToMirrorBatch(newBatch, false);
+                        }
                     }
                 }
             }
 
             internal bool TryCopy(out BlockBatch batch)
             {
-                batch = null;
-                if (!TechUtils.IsBlockAvailInInventory(Singleton.playerTank, batchAssigned.Root.BlockType, true))
-                    return false;
-
-                Transform trans = batchAssigned.Root.trans;
-                TankBlock newRoot = ManLooseBlocks.inst.HostSpawnBlock(batchAssigned.Root.BlockType, 
-                    trans.position, trans.rotation);
-                ManBuildUtil.PreGrabBlock(newRoot);
-                batch = new BlockBatch(newRoot);
-                List<TankBlock> blocks = batchAssigned.batch.ConvertAll(x => x.inst).ToList();
-                foreach (var item in blocks)
-                {
-                    if (TechUtils.IsBlockAvailInInventory(Singleton.playerTank, item.BlockType, true))
-                    {
-                        Transform trans2 = item.trans;
-                        TankBlock newTemp = ManLooseBlocks.inst.HostSpawnBlock(item.BlockType,
-                            trans2.position, trans2.rotation);
-                        batch.Add(BlockCache.CenterOn(newRoot, newTemp));
-                    }
-                    else
-                        return false;
-                }
-                return true;
+                return CloneNoStasis(Singleton.playerTank, batchAssigned, out batch);
+            }
+            internal bool TryCopyMirrored(out BlockBatch batch)
+            {
+                return CloneNoStasisMirrored(Singleton.playerTank, batchAssigned, out batch);
             }
 
             internal void DeInit(bool dropAllToo)
