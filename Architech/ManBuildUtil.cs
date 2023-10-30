@@ -1652,6 +1652,7 @@ namespace Architech
         private static Vector3 angle45InvZ = new Vector3(-1, 1, 0).normalized; // upper left
         private static Vector3 angle45X = new Vector3(0, 1, 1).normalized; // upper right
         private static Vector3 angle45InvX = new Vector3(0, 1, -1).normalized; // upper left
+        private static KeyValuePair<int, MirrorAngle>[] compCache = new KeyValuePair<int, MirrorAngle>[9];
         /// <summary>
         /// returns true if the answer is not vague
         /// Needs optimization that accounts for Sphere and Box Colliders
@@ -1681,26 +1682,25 @@ namespace Architech
 
             int count90XInv = CountOffCenterX(posCentered, angle45InvX);
 
-            List<KeyValuePair<int, MirrorAngle>> comp = new List<KeyValuePair<int, MirrorAngle>> {
-                new KeyValuePair<int, MirrorAngle>(countX, MirrorAngle.X),
+            compCache[0] = new KeyValuePair<int, MirrorAngle>(countX, MirrorAngle.X);
 
-                new KeyValuePair<int, MirrorAngle>(countZ, MirrorAngle.Z),
+            compCache[1] = new KeyValuePair<int, MirrorAngle>(countZ, MirrorAngle.Z);
 
-                new KeyValuePair<int, MirrorAngle>(countY, MirrorAngle.Y),
+            compCache[2] = new KeyValuePair<int, MirrorAngle>(countY, MirrorAngle.Y);
 
-                new KeyValuePair<int, MirrorAngle>(count90, MirrorAngle.YCorner),
+            compCache[3] = new KeyValuePair<int, MirrorAngle>(count90, MirrorAngle.YCorner);
 
-                new KeyValuePair<int, MirrorAngle>(count90Inv, MirrorAngle.YCornerInv),
+            compCache[4] = new KeyValuePair<int, MirrorAngle>(count90Inv, MirrorAngle.YCornerInv);
 
-                new KeyValuePair<int, MirrorAngle>(count90Z, MirrorAngle.ZCorner),
+            compCache[5] = new KeyValuePair<int, MirrorAngle>(count90Z, MirrorAngle.ZCorner);
 
-                new KeyValuePair<int, MirrorAngle>(count90ZInv, MirrorAngle.ZCornerInv),
+            compCache[6] = new KeyValuePair<int, MirrorAngle>(count90ZInv, MirrorAngle.ZCornerInv);
 
-                new KeyValuePair<int, MirrorAngle>(count90X, MirrorAngle.XCorner),
+            compCache[7] = new KeyValuePair<int, MirrorAngle>(count90X, MirrorAngle.XCorner);
 
-                new KeyValuePair<int, MirrorAngle>(count90XInv, MirrorAngle.XCornerInv),
-            };
-            var first = comp.OrderBy(x => Mathf.Abs(x.Key)).First();
+            compCache[8] = new KeyValuePair<int, MirrorAngle>(count90XInv, MirrorAngle.XCornerInv);
+
+            var first = compCache.OrderBy(x => Mathf.Abs(x.Key)).First();
             angle = first.Value;
             if (Mathf.Abs(first.Key) > 2)
             {
@@ -2131,10 +2131,11 @@ namespace Architech
                 }
             }
         }
+        private static List<TankBlock> emptyList = new List<TankBlock>();
         public static List<TankBlock> DetachAllCabsButRoot(Tank tank, bool detachLoose = true)
         {
             if (ManNetwork.IsNetworked || tank == null || tank.blockman.blockCount == 0)
-                return new List<TankBlock>();
+                return emptyList;
             List<TankBlock> toDetach = new List<TankBlock>();
             foreach (var item in tank.blockman.IterateBlocks())
             {
@@ -2592,7 +2593,7 @@ namespace Architech
                 return blockCache;
             }
             catch { }
-            return new List<TankBlock>();
+            return emptyList;
         }
 
         public static OrthoRotation SetCorrectRotation(Quaternion blockRot, Quaternion changeRot)
@@ -2779,20 +2780,21 @@ namespace Architech
             return true;
         }
 
+        private static Dictionary<BlockTypes, int> countsCached = new Dictionary<BlockTypes, int>();
         public static void TakeNeededFromInventory(Tank currentTank, List<BlockTypes> BT)
         {
-            Dictionary<BlockTypes, int> counts = new Dictionary<BlockTypes, int>();
             foreach (var item in BT)
             {
-                if (counts.TryGetValue(item, out int val))
-                    counts[item] = val + 1;
+                if (countsCached.TryGetValue(item, out int val))
+                    countsCached[item] = val + 1;
                 else
-                    counts[item] = 1;
+                    countsCached[item] = 1;
             }
-            foreach (var item in counts)
+            foreach (var item in countsCached)
             {
                 TechUtils.IsBlockAvailInInventory(currentTank, item.Key, item.Value, true);
             }
+            countsCached.Clear();
         }
 
 

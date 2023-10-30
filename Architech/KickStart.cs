@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 using HarmonyLib;
+using TerraTechETCUtil;
 
 #if !STEAM
 using ModHelper.Config;
@@ -49,6 +50,10 @@ namespace Architech
         // OFFICIAL
         public static void OfficialEarlyInit()
         {
+            ModStatusChecker.EncapsulateSafeInit(ModName, OfficialEarlyInit_internal);
+        }
+        private static void OfficialEarlyInit_internal()
+        {
             //Where the fun begins
 
             //Initiate the madness
@@ -70,6 +75,11 @@ namespace Architech
 
 
         public static void MainOfficialInit()
+        {
+            ModStatusChecker.EncapsulateSafeInit(ModName, MainOfficialInit_Internal);
+        }
+
+        private static void MainOfficialInit_Internal()
         {
             //Where the fun begins
 

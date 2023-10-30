@@ -8,9 +8,11 @@ namespace Architech
 {
     internal static class TechUtils
     {
-        public static List<BlockTypes> typesToRepair = new List<BlockTypes>();
-        public static List<BlockTypes> GetMissingBlockTypesExt(List<BlockCache> Mem, List<TankBlock> cBlocks)
+        private static List<BlockTypes> typesMissing = new List<BlockTypes>();
+        private static List<BlockTypes> typesToRepair = new List<BlockTypes>();
+        private static List<BlockTypes> GetMissingBlockTypesExt(List<BlockCache> Mem, List<TankBlock> cBlocks)
         {
+            typesMissing.Clear();
             int toFilter = Mem.Count();
             for (int step = 0; step < toFilter; step++)
             {
@@ -18,7 +20,6 @@ namespace Architech
             }
             typesToRepair = typesToRepair.Distinct().ToList();
 
-            List<BlockTypes> typesMissing = new List<BlockTypes>();
             int toFilter2 = typesToRepair.Count();
             for (int step = 0; step < toFilter2; step++)
             {
@@ -55,7 +56,7 @@ namespace Architech
             if (fullyCharge)
                 tank.EnergyRegulator.SetAllStoresAmount(1);
         }
-        public static void TurboRepairExt(Tank tank, List<BlockCache> Mem, ref List<BlockTypes> typesMissing, ref List<TankBlock> provided)
+        private static void TurboRepairExt(Tank tank, List<BlockCache> Mem, ref List<BlockTypes> typesMissing, ref List<TankBlock> provided)
         {
             List<TankBlock> cBlocks = tank.blockman.IterateBlocks().ToList();
             int savedBCount = Mem.Count;
@@ -69,7 +70,7 @@ namespace Architech
             }
             return;
         }
-        public static bool TryAttachExistingBlockFromListExt(Tank tank, List<BlockCache> mem, ref List<BlockTypes> typesMissing, ref List<TankBlock> foundBlocks, bool denySD = false)
+        private static bool TryAttachExistingBlockFromListExt(Tank tank, List<BlockCache> mem, ref List<BlockTypes> typesMissing, ref List<TankBlock> foundBlocks, bool denySD = false)
         {
             int attachAttempts = foundBlocks.Count();
             //Debug.Log("TACtical AI: RepairLerp - Found " + attachAttempts + " loose blocks to use");

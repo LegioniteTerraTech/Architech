@@ -4,13 +4,12 @@ using System.Linq;
 using System.IO;
 using System.Reflection;
 using UnityEngine;
+using TerraTechETCUtil;
 
 namespace Architech
 {
     public class CursorChanger : MonoBehaviour
     {
-        static FieldInfo existingCursors = typeof(MousePointer).GetField("m_CursorDataSets", BindingFlags.NonPublic | BindingFlags.Instance);
-
         /*
             Default,
             OverGrabbable,
@@ -36,48 +35,73 @@ namespace Architech
             PointerBatch
             PointerMirrorBatch
         */
+        public static CursorChangeHelper.CursorChangeCache Cache;
         private static bool AddedNewCursors = false;
-        private static List<Texture2D> CursorTextureCache = new List<Texture2D>();
-        public static int[] CursorIndexCache = new int[13];
+        public static CursorChangeHelper.CursorChangeCache CursorIndexCache => Cache.CursorIndexCache;
 
         public static void AddNewCursors()
         {
             if (AddedNewCursors)
                 return;
-            MousePointer MP = FindObjectOfType<MousePointer>();
-            DebugArchitech.Assert(!MP, "BuildUtil: AddNewCursors - THE CURSOR DOES NOT EXIST!");
             string DLLDirectory = new DirectoryInfo(Assembly.GetExecutingAssembly().Location).Parent.ToString();
-            DebugArchitech.LogDevOnly("BuildUtil: AddNewCursors - Path: " + DLLDirectory);
-            try
+            if (ResourcesHelper.TryGetModContainer("Architech - Mirror Mod", out ModContainer MC))
             {
-                int LODLevel = 0;
-                MousePointer.CursorDataSet[] cursorLODs = (MousePointer.CursorDataSet[])existingCursors.GetValue(MP);
-                foreach (var item in cursorLODs)
-                {
-                    List<MousePointer.CursorData> cursorTypes = item.m_CursorData.ToList();
-
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverTech", LODLevel, new Vector2(0.5f, 0.5f), 0);// 1
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldTech", LODLevel, new Vector2(0.5f, 0.5f), 1);// 2
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirror", LODLevel, new Vector2(0.5f, 0.5f), 2);// 3
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldMirror", LODLevel, new Vector2(0.5f, 0.5f), 3);// 4
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverBatch", LODLevel, new Vector2(0.5f, 0.5f), 4);// 5
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldBatch", LODLevel, new Vector2(0.5f, 0.5f), 5);// 6
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirrorBatch", LODLevel, new Vector2(0.5f, 0.5f), 6);// 7
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "HoldMirrorBatch", LODLevel, new Vector2(0.5f, 0.5f), 7);// 8
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "MirroredPainting", LODLevel, new Vector2(0.3f, 0.3f), 8);// 9
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirroredPainting", LODLevel, new Vector2(0.3f, 0.3f), 9);// 10
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "PointerMirror", LODLevel, Vector2.zero, 10);// 11
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "PointerBatch", LODLevel, Vector2.zero, 11);// 12
-                    TryAddNewCursor(cursorTypes, DLLDirectory, "PointerMirrorBatch", LODLevel, Vector2.zero, 12);// 13
-
-                    item.m_CursorData = cursorTypes.ToArray();
-                }
+                Cache = CursorChangeHelper.GetCursorChangeCache(DLLDirectory, "Cursor_Icons", MC,
+                    "OverTech",
+                    "HoldTech",
+                    "OverMirror",
+                    "OverBatch",
+                    "HoldBatch",
+                    "OverMirrorBatch",
+                    "HoldMirrorBatch",
+                    "MirroredPainting",
+                    "OverMirroredPainting",
+                    "PointerMirror",
+                    "PointerBatch",
+                    "PointerMirrorBatch"
+                    );
             }
-            catch (Exception e) { DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch rest of cursor textures " + e); }
+            else
+            {
+                DebugArchitech.Assert(true, "CursorChanger: AddNewCursors - Could not find ModContainer for Architech!");
+                /*
+                MousePointer MP = FindObjectOfType<MousePointer>();
+                DebugArchitech.Assert(!MP, "BuildUtil: AddNewCursors - THE CURSOR DOES NOT EXIST!");
+                DebugArchitech.LogDevOnly("BuildUtil: AddNewCursors - Path: " + DLLDirectory);
+                try
+                {
+                    int LODLevel = 0;
+                    CursorDataTable.CursorDataSet[] cursorLODs = ManUI.inst.CursorDataTable.
+                        PlatformSets[CursorDataTable.PlatformSetTypes.PC].m_DataSets;
+                    foreach (var item in cursorLODs)
+                    {
+                        List<CursorDataTable.CursorData> cursorTypes = item.m_CursorData.ToList();
+
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "OverTech", LODLevel, new Vector2(0.5f, 0.5f), 0);// 1
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "HoldTech", LODLevel, new Vector2(0.5f, 0.5f), 1);// 2
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirror", LODLevel, new Vector2(0.5f, 0.5f), 2);// 3
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "HoldMirror", LODLevel, new Vector2(0.5f, 0.5f), 3);// 4
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "OverBatch", LODLevel, new Vector2(0.5f, 0.5f), 4);// 5
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "HoldBatch", LODLevel, new Vector2(0.5f, 0.5f), 5);// 6
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirrorBatch", LODLevel, new Vector2(0.5f, 0.5f), 6);// 7
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "HoldMirrorBatch", LODLevel, new Vector2(0.5f, 0.5f), 7);// 8
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "MirroredPainting", LODLevel, new Vector2(0.3f, 0.3f), 8);// 9
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "OverMirroredPainting", LODLevel, new Vector2(0.3f, 0.3f), 9);// 10
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "PointerMirror", LODLevel, Vector2.zero, 10);// 11
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "PointerBatch", LODLevel, Vector2.zero, 11);// 12
+                        TryAddNewCursor(cursorTypes, DLLDirectory, "PointerMirrorBatch", LODLevel, Vector2.zero, 12);// 13
+
+                        item.m_CursorData = cursorTypes.ToArray();
+                    }
+                }
+                catch (Exception e) { DebugArchitech.Log("BuildUtil: AddNewCursors - failed to fetch rest of cursor textures " + e); }
+                */
+            }
             AddedNewCursors = true;
         }
 
-        private static void TryAddNewCursor(List<MousePointer.CursorData> lodInst, string DLLDirectory, string name, int lodLevel, Vector2 center, int cacheIndex)
+        /*
+        private static void TryAddNewCursor(List<CursorDataTable.CursorData> lodInst, string DLLDirectory, string name, int lodLevel, Vector2 center, int cacheIndex)
         {
             DebugArchitech.LogDevOnly("BuildUtil: AddNewCursors - " + DLLDirectory + " for " + name + " " + lodLevel + " " + center);
             try
@@ -97,7 +121,7 @@ namespace Architech
                     { return cand.Name == name + "1.png"; }).ToString());
                     CursorTextureCache.Add(tex);
                 }
-                MousePointer.CursorData CD = new MousePointer.CursorData
+                CursorDataTable.CursorData CD = new CursorDataTable.CursorData
                 {
                     m_Hotspot = center * tex.width,
                     m_Texture = tex,
@@ -108,6 +132,6 @@ namespace Architech
             }
             catch { DebugArchitech.Assert(true, "BuildUtil: AddNewCursors - failed to fetch cursor texture " + name); }
         }
-
+        */
     }
 }

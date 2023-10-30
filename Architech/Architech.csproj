@@ -54,6 +54,9 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+    <Reference Include="TerraTechETCUtil">
+      <HintPath>..\..\..\Documents\GitHub\TTETCUtil\TerraTechETCUtil\TerraTechETCUtil\obj\Steam\TerraTechETCUtil.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine">
       <HintPath>..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\TerraTech\TerraTechWin64_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
