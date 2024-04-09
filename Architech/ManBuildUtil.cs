@@ -294,6 +294,7 @@ namespace Architech
         public static List<KeyValuePair<Tank, TankBlock>> delayedAdd = new List<KeyValuePair<Tank, TankBlock>>();
         public static List<KeyValuePair<Tank, TankBlock>> delayedRemove = new List<KeyValuePair<Tank, TankBlock>>();
         public static List<MirrorCache> delayedUnsortedBatching = new List<MirrorCache>();
+        public static Action RandAct = TechVideoEncoder.BuildTechFromVideo;
         public void Update()
         {
             UpdateBuildingTools();
@@ -301,6 +302,15 @@ namespace Architech
             {
                 cachePointerHeld = ManPointer.inst.DraggingItem.block;
                 lastDraggedPosition = cachePointerHeld.trans.position;
+            }
+            try
+            {
+                if (Input.GetKeyDown(KeyCode.KeypadPlus) && RandAct != null)
+                    RandAct.Invoke();
+            }
+            catch (Exception e)
+            {
+                DebugArchitech.FatalError(e);
             }
         }
         public void FixedUpdate()

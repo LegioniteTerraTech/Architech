@@ -29,6 +29,13 @@ namespace Architech
                 return;
             UnityEngine.Debug.Log(message);
         }
+        internal static void LogConsole(string message)
+        {
+            if (!ShouldLog)
+                return;
+            UnityEngine.Debug.Log(message);
+            DevCommands.ManDevCommands.inst.Log(message);
+        }
         internal static void Log(Exception e)
         {
             if (!ShouldLog)

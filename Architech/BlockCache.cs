@@ -9,11 +9,14 @@ namespace Architech
 {
     public struct BlockCache
     {   // Save the blocks!
+        private static TankPreset.BlockSpec BlockDataHolder = new TankPreset.BlockSpec();
 
         public TankBlock inst;
         public BlockTypes t;
         public Vector3 p;
         public OrthoRotation r;
+        public Dictionary<int, Module.SerialData> serial;
+        public List<string> serial2;
 
         public BlockCache(TankBlock Active)
         {
@@ -21,6 +24,20 @@ namespace Architech
             t = Active.BlockType;
             p = Vector3.zero;
             r = OrthoRotation.identity;
+            if (ManGameMode.inst.GetCurrentGameType() == ManGameMode.GameType.MainGame)
+            {
+                BlockDataHolder.textSerialData = new List<string>();
+                Active.SerializeToText(true, BlockDataHolder, Active.tank);
+                serial2 = BlockDataHolder.textSerialData;
+                serial = null;
+            }
+            else
+            {
+                BlockDataHolder.saveState = new Dictionary<int, Module.SerialData>();
+                Active.Serialize(true, BlockDataHolder);
+                serial = BlockDataHolder.saveState;
+                serial2 = null;
+            }
         }
 
         public BlockCache(TankBlock Active, BlockTypes Type, Vector3 localPosition, OrthoRotation localRotation)
@@ -29,6 +46,20 @@ namespace Architech
             t = Type;
             p = localPosition;
             r = localRotation;
+            if (ManGameMode.inst.GetCurrentGameType() == ManGameMode.GameType.MainGame)
+            {
+                BlockDataHolder.textSerialData = new List<string>();
+                Active.SerializeToText(true, BlockDataHolder, Active.tank);
+                serial2 = BlockDataHolder.textSerialData;
+                serial = null;
+            }
+            else
+            {
+                BlockDataHolder.saveState = new Dictionary<int, Module.SerialData>();
+                Active.Serialize(true, BlockDataHolder);
+                serial = BlockDataHolder.saveState;
+                serial2 = null;
+            }
             TidyUp();
         }
 
@@ -42,6 +73,8 @@ namespace Architech
             t = toCopy.t;
             p = toCopy.p;
             r = toCopy.r;
+            serial = toCopy.serial;
+            serial2 = toCopy.serial2;
         }
 
         public static BlockCache CenterOn(TankBlock mainHeld, TankBlock toSet)

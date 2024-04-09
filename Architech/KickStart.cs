@@ -8,10 +8,7 @@ using TerraTechETCUtil;
 
 #if !STEAM
 using ModHelper.Config;
-#else
-using ModHelper;
 #endif
-using Nuterra.NativeOptions;
 
 namespace Architech
 {
@@ -103,6 +100,7 @@ namespace Architech
                     DebugArchitech.Log(e);
                 }
             }
+
             MirrorManager.Init();
             ManBuildUtil.Init();
             ManBlockBatches.Subcribble(true);
@@ -169,11 +167,11 @@ namespace Architech
 
     public class KickStartOptions
     {
-        public static OptionKey hold;
-        public static OptionKey mirror;
-        public static OptionKey batch;
-        public static OptionKey root;
-        public static OptionKey grabTechs;
+        public static Nuterra.NativeOptions.OptionKey hold;
+        public static Nuterra.NativeOptions.OptionKey mirror;
+        public static Nuterra.NativeOptions.OptionKey batch;
+        public static Nuterra.NativeOptions.OptionKey root;
+        public static Nuterra.NativeOptions.OptionKey grabTechs;
 
         private static bool launched = false;
 
@@ -182,7 +180,7 @@ namespace Architech
             if (launched)
                 return;
             launched = true;
-            ModConfig thisModConfig = new ModConfig();
+            ModHelper.ModConfig thisModConfig = new ModHelper.ModConfig();
             thisModConfig.BindConfig<KickStart>(null, "savSuppression");
             thisModConfig.BindConfig<KickStart>(null, "savChangeRoot");
             thisModConfig.BindConfig<KickStart>(null, "savGrabTechs");
@@ -196,38 +194,38 @@ namespace Architech
             KickStart.GrabTechs = (KeyCode)KickStart.savGrabTechs;
 
             var TACAI = KickStart.ModName + " - Hotkey Settings";
-            hold = new OptionKey("Suppress Controls [HOLD]", TACAI, KickStart.SuppressControl);
+            hold = new Nuterra.NativeOptions.OptionKey("Suppress Controls [HOLD]", TACAI, KickStart.SuppressControl);
             hold.onValueSaved.AddListener(() =>
             {
                 KickStart.SuppressControl = hold.SavedValue;
                 KickStart.savSuppression = (int)KickStart.SuppressControl;
             });
-            mirror = new OptionKey("Mirror Mode [TOGGLE]", TACAI, KickStart.ToggleMirrorMode);
+            mirror = new Nuterra.NativeOptions.OptionKey("Mirror Mode [TOGGLE]", TACAI, KickStart.ToggleMirrorMode);
             mirror.onValueSaved.AddListener(() =>
             {
                 KickStart.ToggleMirrorMode = mirror.SavedValue;
                 KickStart.savToggleMirrorMode = (int)KickStart.ToggleMirrorMode;
             });
-            batch = new OptionKey("Batch Holding [TOGGLE]", TACAI, KickStart.ToggleBatch);
+            batch = new Nuterra.NativeOptions.OptionKey("Batch Holding [TOGGLE]", TACAI, KickStart.ToggleBatch);
             batch.onValueSaved.AddListener(() =>
             {
                 KickStart.ToggleBatch = batch.SavedValue;
                 KickStart.savToggleBatch = (int)KickStart.ToggleBatch;
             });
-            root = new OptionKey("Root Setter [HOLD]", TACAI, KickStart.ChangeRoot);
+            root = new Nuterra.NativeOptions.OptionKey("Root Setter [HOLD]", TACAI, KickStart.ChangeRoot);
             root.onValueSaved.AddListener(() =>
             {
                 KickStart.ChangeRoot = root.SavedValue;
                 KickStart.savChangeRoot = (int)KickStart.ChangeRoot;
             });
-            grabTechs = new OptionKey("Grab Techs [HOLD]", TACAI, KickStart.GrabTechs);
+            grabTechs = new Nuterra.NativeOptions.OptionKey("Grab Techs [HOLD]", TACAI, KickStart.GrabTechs);
             grabTechs.onValueSaved.AddListener(() =>
             {
                 KickStart.GrabTechs = grabTechs.SavedValue;
                 KickStart.savGrabTechs = (int)KickStart.GrabTechs;
             });
 
-            NativeOptionsMod.onOptionsSaved.AddListener(() => { thisModConfig.WriteConfigJsonFile(); });
+            Nuterra.NativeOptions.NativeOptionsMod.onOptionsSaved.AddListener(() => { thisModConfig.WriteConfigJsonFile(); });
         }
 
     }
