@@ -7,7 +7,7 @@ using UnityEngine;
 namespace Architech
 {
     /// <summary>
-    /// Lets the player build with a far more complex, but non-combat restricted building system.
+    /// Lets the player build with a far more complex, but very non-novel non-combat restricted building system.
     /// I don't know why TerraTech consistantly fails to see that it's building system is very  
     ///   mobile and action-oriented.
     ///   

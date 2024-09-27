@@ -14,7 +14,7 @@ namespace Architech
 {
     public class KickStart
     {
-        internal const string ModName = "Architech";
+        internal const string ModName = "Architech - Mirror Mod";
 
         public static KeyCode SuppressControl = KeyCode.LeftControl;
         public static KeyCode ChangeRoot = KeyCode.Backslash;

@@ -57,20 +57,37 @@ namespace Architech
                 {
                     switch (__result)
                     {
+                        case GameCursor.CursorState.Default:
+                            if (ManBuildUtil.IsBatchActive)
+                            {
+                                if (ManBuildUtil.IsMirroring)
+                                {
+                                    __result = CursorChanger.CursorIndexCache[12];
+                                }
+                                else
+                                {
+                                    __result = CursorChanger.CursorIndexCache[11];
+                                }
+                            }
+                            else if (ManBuildUtil.IsMirroring)
+                            {
+                                __result = CursorChanger.CursorIndexCache[9];
+                            }
+                            break;
                         case GameCursor.CursorState.Painting:
                             if (ManBuildUtil.IsGrabbingTechsActive)
                             {
                                 if (ManBuildUtil.IsHoveringGrabbableTech)
                                 {   // Display tech grab
-                                    __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[0];
+                                    __result = CursorChanger.CursorIndexCache[0];
                                     return;
                                 }
                             }
                             if (ManBuildUtil.IsMirroring)
                             {
                                 if (ManBuildUtil.IsHoldingMirrored && !ManBuildUtil.lastFramePlacementInvalid)
-                                {   // Display Mirror grab
-                                    __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[2];
+                                {   // Display Mirror Painting
+                                    __result = CursorChanger.CursorIndexCache[3];
                                 }
                             }
                             break;
@@ -80,7 +97,7 @@ namespace Architech
                             {
                                 if (ManBuildUtil.IsHoveringGrabbableTech)
                                 {   // Display tech grab
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[0]);
+                                    __result = CursorChanger.CursorIndexCache[0];
                                     return;
                                 }
                             }
@@ -91,12 +108,10 @@ namespace Architech
                                     if (ManPointer.inst.targetVisible?.block && ManPointer.inst.targetVisible.block.tank)
                                     {   // Display Batch Grab + Mirror
                                         if (ManBuildUtil.IsHoveringMirrored)
-                                        {
-                                            __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[12]);
-                                        }
+                                            __result = CursorChanger.CursorIndexCache[6];
                                         else
                                         {   // Display batch grab
-                                            __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[11]);
+                                            __result = CursorChanger.CursorIndexCache[4];                  
                                         }
                                     }
                                 }
@@ -104,7 +119,7 @@ namespace Architech
                                 {
                                     if (ManPointer.inst.targetVisible?.block && ManPointer.inst.targetVisible.block.tank)
                                     {   // Display batch grab
-                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[11]);
+                                        __result = CursorChanger.CursorIndexCache[4];
                                     }
                                 }
                             }
@@ -112,7 +127,7 @@ namespace Architech
                             {
                                 if (ManBuildUtil.IsHoveringMirrored)
                                 {   // Display Mirror grab
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[10]);
+                                    __result = CursorChanger.CursorIndexCache[2];
                                 }
                             }
                             break;
@@ -121,7 +136,7 @@ namespace Architech
                             if (ManBuildUtil.IsGrabbingTechsActive)
                             {   // Display Tech Grabbed
                                 if (ManBuildUtil.BusyGrabbingTechs)
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[1]);
+                                    __result = CursorChanger.CursorIndexCache[1];
                             }
                             else if (ManBuildUtil.IsBatchActive && ManBuildUtil.inst.IsHoldingBatch)
                             {
@@ -129,29 +144,31 @@ namespace Architech
                                 {
                                     if (ManBuildUtil.IsHoldingMirrored || ManBuildUtil.IsHoveringMirrored)
                                     {   // Display Batch Grabbed + Mirror 
-                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[7]);
+                                        __result = CursorChanger.CursorIndexCache[7];
                                     }
                                     else
                                     {  // Display batch grabbed
-                                        __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[5];
+                                        __result = CursorChanger.CursorIndexCache[5];
                                     }
                                 }
                                 else
                                 {  // Display batch grabbed
-                                    __result = (GameCursor.CursorState)CursorChanger.CursorIndexCache[5];
+                                    __result = CursorChanger.CursorIndexCache[5];
                                 }
                             }
                             else if (ManBuildUtil.IsMirroring)
                             {
                                 if (ManBuildUtil.IsHoldingMirrored || ManBuildUtil.IsHoveringMirrored)
                                 {   // Display Mirror grabbed 
-                                    __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[3]);
+                                    __result = CursorChanger.CursorIndexCache[3];
                                 }
                             }
                             break;
 
-                        //case GameCursor.CursorState.SkinPainting:
-                        //    break;
+                        case GameCursor.CursorState.SkinPainting:
+                            if (ManBuildUtil.IsMirroring && ManBuildUtil.IsHoveringMirrored)
+                                __result = CursorChanger.CursorIndexCache[8];
+                            break;
 
                         case GameCursor.CursorState.SkinPaintingOverPaintable:
                             if (ManBuildUtil.IsMirroring)
@@ -159,9 +176,9 @@ namespace Architech
                                 if (ManBuildUtil.IsHoveringMirrored)
                                 {
                                     if (ManBuildUtil.IsPaintingSkin)
-                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[8]);
+                                        __result = CursorChanger.CursorIndexCache[8];
                                     else
-                                        __result = (GameCursor.CursorState)(CursorChanger.CursorIndexCache[9]);
+                                        __result = CursorChanger.CursorIndexCache[9];
                                 }
                             }
                             break;

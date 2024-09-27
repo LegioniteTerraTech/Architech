@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
-
+using TerraTechETCUtil;
 
 
 namespace Architech
@@ -108,13 +108,17 @@ namespace Architech
             OH = Instantiate((ObjectHighlight)highL.GetValue(ManPointer.inst));
             OH.SetHighlightType(ManPointer.HighlightVariation.Normal);
             CursorChanger.AddNewCursors();
+            DebugArchitech.Log("there are " + CursorChanger.CursorIndexCache.Count + " cursors");
 
+            ManGameMode.inst.ModeStartEvent.Subscribe(OnModeStart);
         }
         public static void DeInit()
         {
             if (!inst)
                 return;
+            ManGameMode.inst.ModeStartEvent.Unsubscribe(OnModeStart);
 
+            SetButtonsVisibility(false);
             cacheRotationsModded.Clear();
 
 
@@ -127,7 +131,79 @@ namespace Architech
             Destroy(inst.gameObject);
             inst = null;
         }
+        public static void OnModeStart(Mode mode)
+        {
+            if (mode == null)
+                return;
+            if (toggleMirror == null)
+            {
+                if (ResourcesHelper.TryGetModContainer(KickStart.ModName, out var MC))
+                {
+                    try
+                    {
+                        Texture2D texture2D = ResourcesHelper.GetTextureFromModAssetBundle(MC, "OverMirror2");
+                        toggleMirror = new ManToolbar.ToolbarToggle("Mirror Building", Sprite.Create(texture2D,
+                            new Rect(0, 0, texture2D.width, texture2D.height), Vector2.zero, 1,
+                            0, SpriteMeshType.FullRect), TogglePlayerMirroring);
+                        texture2D = ResourcesHelper.GetTextureFromModAssetBundle(MC, "OverBatch2");
+                        toggleBatcher = new ManToolbar.ToolbarToggle("Cluster Grabbing", Sprite.Create(texture2D,
+                            new Rect(0, 0, texture2D.width, texture2D.height), Vector2.zero, 1,
+                            0, SpriteMeshType.FullRect), TogglePlayerBatching);
+                        SetButtonsVisibility(true);
+                    }
+                    catch (Exception e)
+                    {
+                        DebugArchitech.Log("Failed to setup Architech buttons! - " + e);
+                    }
+                }
+            }
+            var type = mode.GetGameType();
+            if (type == ManGameMode.GameType.CoOpCampaign || type == ManGameMode.GameType.CoOpCreative
+                || type == ManGameMode.GameType.Deathmatch)
+                SetButtonsVisibility(false);
+            else
+                SetButtonsVisibility(true);
+        }
+        internal static void SetButtonsVisibility(bool state)
+        {
+            if (ManToolbar.Ready)
+            {
+                if (toggleMirror != null && toggleBatcher != null)
+                {
+                    toggleMirror.SetToggleVisibility(state);
+                    toggleBatcher.SetToggleVisibility(state);
+                }
+                else
+                    DebugArchitech.Log("Failed to set visibility for Architech buttons!  Button(s) were null!");
+            }
+        }
 
+        public static ManToolbar.ToolbarToggle toggleMirror = null;
+        internal static void TogglePlayerMirroring(bool state)
+        {
+            IsMirrorModeActive = !IsMirrorModeActive;
+            if (IsMirrorModeActive)
+                ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Open);
+            else
+                ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Close);
+            if (toggleMirror != null)
+                toggleMirror.SetToggleState(IsMirrorModeActive);
+            else
+                throw new NullReferenceException("Failed to set visibility for Architech mirror button!  Button null!");
+        }
+        public static ManToolbar.ToolbarToggle toggleBatcher = null;
+        internal static void TogglePlayerBatching(bool state)
+        {
+            IsBatchActive = !IsBatchActive;
+            if (IsBatchActive)
+                ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Open);
+            else
+                ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Close);
+            if (toggleBatcher != null)
+                toggleBatcher.SetToggleState(IsBatchActive);
+            else
+                throw new NullReferenceException("Failed to set visibility for Architech batch button!  Button null!");
+        }
 
 
         public static void OnPlayerTechChanged(Tank tank, bool yes)
@@ -291,6 +367,7 @@ namespace Architech
         {
         }
 
+
         public static List<KeyValuePair<Tank, TankBlock>> delayedAdd = new List<KeyValuePair<Tank, TankBlock>>();
         public static List<KeyValuePair<Tank, TankBlock>> delayedRemove = new List<KeyValuePair<Tank, TankBlock>>();
         public static List<MirrorCache> delayedUnsortedBatching = new List<MirrorCache>();
@@ -390,26 +467,14 @@ namespace Architech
             if (ToggleBatchMode != lastFrameButton2)
             {
                 if (ToggleBatchMode)
-                {
-                    IsBatchActive = !IsBatchActive;
-                    if (IsBatchActive)
-                        ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Open);
-                    else
-                        ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Close);
-                }
+                    TogglePlayerBatching(false);
                 lastFrameButton2 = ToggleBatchMode;
             }
 
             if (ToggleMirrorMode != lastFrameButton)
             {
                 if (ToggleMirrorMode)
-                {
-                    IsMirrorModeActive = !IsMirrorModeActive;
-                    if (IsMirrorModeActive)
-                        ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Open);
-                    else
-                        ManSFX.inst.PlayUISFX(ManSFX.UISfxType.Close);
-                }
+                    TogglePlayerMirroring(false);
                 lastFrameButton = ToggleMirrorMode;
             }
 
